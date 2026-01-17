@@ -1,54 +1,71 @@
-# C++ objects and libs
-*.slo
-*.lo
-*.o
-*.a
-*.la
-*.lai
-*.so
-*.so.*
-*.dll
-*.dylib
+# Qt/QML project ignores
 
-# Qt-es
-object_script.*.Release
-object_script.*.Debug
-*_plugin_import.cpp
-/.qmake.cache
-/.qmake.stash
+# Qt Creator user files
 *.pro.user
 *.pro.user.*
-*.qbs.user
-*.qbs.user.*
-*.moc
+*.creator
+*.creator.user
+*.creator.user.*
+*.files
+*.includes
+*.config
+*.cflags
+*.cxxflags
+*.qmake.stash
+*.qmake.cache
+
+# Common build output directories
+/build-simulator/
+/build-symbian/
+/debug/
+/release/
+/bin/
+/out/
+/x86/
+/x64/
+
+# Generated Qt build artifacts
+/moc/
+/obj/
+/rcc/
+/ui/
 moc_*.cpp
 moc_*.h
 qrc_*.cpp
 ui_*.h
+Makefile
+Makefile.*
+
+*.mmp
+*.pkg
+*.rss
+*.loc
+
+# Compiled objects and binaries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.exp
+*.ilk
+*.pdb
+*.idb
+
+# QML caches
 *.qmlc
 *.jsc
-Makefile*
-*build-*
-*.qm
-*.prl
-
-# Qt unit tests
-target_wrapper.*
-
-# QtCreator
-*.autosave
-
-# QtCreator Qml
 *.qmlproject.user
 *.qmlproject.user.*
 
-# QtCreator CMake
-CMakeLists.txt.user*
+# Logs and OS junk
+*.log
+.DS_Store
+Thumbs.db
+ehthumbs.db
 
-# QtCreator 4.8< compilation database
-compile_commands.json
-
-# QtCreator local machine specific files for imported projects
-*creator.user*
-
-*_qmlcache.qrc
+# Ensure dependency blobs are kept in version control
+!deps/**

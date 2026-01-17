@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/qml">
+        <file>MainPage.qml</file>
+        <file>PlayerPage.qml</file>
+        <file>AppWindow.qml</file>
+    </qresource>
+</RCC>
