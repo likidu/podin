@@ -21,9 +21,12 @@ DEFINES += QJSON_STATIC
 
 SOURCES += \
     src/main.cpp \
+    src/PodcastIndexClient.cpp \
     src/TlsChecker.cpp
 
 HEADERS += \
+    src/PodcastIndexClient.h \
+    src/PodcastIndexConfig.h \
     src/TlsChecker.h \
     src/ApiConfig.h
 
@@ -32,4 +35,6 @@ RESOURCES += \
 
 OTHER_FILES += \
     qml/MainPage.qml \
-    qml/PlayerPage.qml
+    qml/EpisodesPage.qml \
+    qml/PlayerPage.qml \
+    qml/PodinPageStackWindow.qml

@@ -1,7 +1,7 @@
 import QtQuick 1.1
 import com.nokia.symbian 1.1
 
-PageStackWindow {
+PodinPageStackWindow {
     id: window
     showStatusBar: true
     showToolBar: true
@@ -30,9 +30,9 @@ PageStackWindow {
     initialPage: MainPage {
         id: mainPage
         tools: toolBarLayout
-        onRequestPlayer: {
-            var params = { tools: toolBarLayout };
-            window.pageStack.push(Qt.resolvedUrl("PlayerPage.qml"), params);
+        onRequestEpisodes: {
+            var params = { feedId: feedId, podcastTitle: title, tools: toolBarLayout };
+            window.pageStack.push(Qt.resolvedUrl("EpisodesPage.qml"), params);
         }
     }
 
