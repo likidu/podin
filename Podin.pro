@@ -37,4 +37,5 @@ OTHER_FILES += \
     qml/MainPage.qml \
     qml/EpisodesPage.qml \
     qml/PlayerPage.qml \
-    qml/PodinPageStackWindow.qml
+    qml/PodinPageStackWindow.qml \
+    qml/AudioFacade.qml

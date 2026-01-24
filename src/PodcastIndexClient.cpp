@@ -244,6 +244,7 @@ QVariantList PodcastIndexClient::parseEpisodeList(const QVariant &root) const
         const QVariant dateValue = pickValue(item, "datePublished");
         const QVariant durationValue = pickValue(item, "duration");
         const QString enclosureUrl = pickString(item, "enclosureUrl");
+        const QString enclosureType = pickString(item, "enclosureType");
         const QString image = pickString(item, "image", "feedImage");
 
         QVariantMap entry;
@@ -253,6 +254,7 @@ QVariantList PodcastIndexClient::parseEpisodeList(const QVariant &root) const
         entry.insert(QString::fromLatin1("datePublished"), dateValue);
         entry.insert(QString::fromLatin1("duration"), durationValue);
         entry.insert(QString::fromLatin1("enclosureUrl"), enclosureUrl);
+        entry.insert(QString::fromLatin1("enclosureType"), enclosureType);
         entry.insert(QString::fromLatin1("image"), image);
         results.append(entry);
     }

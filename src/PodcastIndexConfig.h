@@ -13,8 +13,8 @@ static const char *const kApiKeyEnvName = "PODIN_API_KEY";
 static const char *const kApiSecretEnvName = "PODIN_API_SECRET";
 
 // Optional built-in defaults for local testing. Leave empty to require env vars.
-static const char *const kApiKeyDefault = "";
-static const char *const kApiSecretDefault = "";
+static const char *const kApiKeyDefault = "UZCP45SS4RCDYP4EUBKT";
+static const char *const kApiSecretDefault = "zzAGdXQwKgpUzvgsbWFDw^HfJ5RKS7VX$ACCEBgb";
 
 inline QByteArray readEnvValue(const char *name)
 {

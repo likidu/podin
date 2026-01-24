@@ -1,5 +1,4 @@
 import QtQuick 1.1
-import QtMultimediaKit 1.1
 import com.nokia.symbian 1.1
 
 Page {
@@ -9,10 +8,38 @@ Page {
     property int feedId: 0
     property string podcastTitle: ""
     property string currentTitle: ""
+    property string currentEnclosureType: ""
     property url streamUrl: ""
     property bool isPlaying: false
     property bool hasLoaded: false
+    property int lastRequestedFeedId: 0
     property string statusMessage: qsTr("Select an episode to play.")
+
+    function mediaLabelFor(url, enclosureType) {
+        var type = enclosureType ? enclosureType.toString().toLowerCase() : "";
+        if (type.indexOf("audio/mpeg") !== -1 || type.indexOf("audio/mp3") !== -1) {
+            return "mp3";
+        }
+        if (type.indexOf("audio/mp4") !== -1 || type.indexOf("audio/m4a") !== -1 || type.indexOf("audio/aac") !== -1) {
+            return "m4a";
+        }
+        var urlString = url ? (url.toString ? url.toString() : url) : "";
+        var path = urlString.split("?")[0];
+        var dot = path.lastIndexOf(".");
+        if (dot !== -1) {
+            var ext = path.slice(dot + 1).toLowerCase();
+            if (ext === "mp3") {
+                return "mp3";
+            }
+            if (ext === "m4a" || ext === "mp4" || ext === "aac") {
+                return "m4a";
+            }
+            if (ext.length > 0 && ext.length <= 5) {
+                return ext;
+            }
+        }
+        return "unknown";
+    }
 
     function formatDuration(seconds) {
         if (!seconds || seconds < 0) {
@@ -36,8 +63,8 @@ Page {
     }
 
     function updateStatus(note) {
-        var stateText = audio.state === Audio.PlayingState ? qsTr("Playing")
-                        : audio.state === Audio.PausedState ? qsTr("Paused")
+        var stateText = audio.state === audio.playingState ? qsTr("Playing")
+                        : audio.state === audio.pausedState ? qsTr("Paused")
                         : qsTr("Stopped");
         var position = formatDuration(audio.position / 1000);
         var duration = formatDuration(audio.duration / 1000);
@@ -48,20 +75,31 @@ Page {
         page.statusMessage = base;
     }
 
-    function startPlayback(url, title) {
+    function startPlayback(url, title, enclosureType) {
         var urlString = url ? (url.toString ? url.toString() : url) : "";
         if (urlString.length === 0) {
             updateStatus(qsTr("No audio URL available."));
             return;
         }
+        audio.ensureImpl();
+        if (!audio.available) {
+            updateStatus(qsTr("Audio playback unavailable in this runtime."));
+            return;
+        }
         page.streamUrl = urlString;
         page.currentTitle = title || "";
+        page.currentEnclosureType = enclosureType || "";
         audio.play();
         updateStatus(qsTr("Loading..."));
     }
 
     function togglePlayback() {
-        if (audio.state === Audio.PlayingState) {
+        audio.ensureImpl();
+        if (!audio.available) {
+            updateStatus(qsTr("Audio playback unavailable in this runtime."));
+            return;
+        }
+        if (audio.state === audio.playingState) {
             audio.pause();
         } else if (page.streamUrl && page.streamUrl.toString().length > 0) {
             audio.play();
@@ -75,6 +113,13 @@ Page {
         updateStatus(qsTr("Stopped."));
     }
 
+    function requestEpisodesIfReady() {
+        if (page.feedId > 0 && page.feedId !== page.lastRequestedFeedId) {
+            page.lastRequestedFeedId = page.feedId;
+            apiClient.fetchEpisodes(page.feedId);
+        }
+    }
+
     onStatusChanged: {
         if (status === PageStatus.Inactive) {
             stopPlayback();
@@ -83,7 +128,13 @@ Page {
 
     Component.onCompleted: {
         page.hasLoaded = true;
-        apiClient.fetchEpisodes(page.feedId);
+        requestEpisodesIfReady();
+    }
+
+    onFeedIdChanged: {
+        if (page.hasLoaded) {
+            requestEpisodesIfReady();
+        }
     }
 
     Rectangle {
@@ -158,7 +209,8 @@ Page {
                 }
 
                 Text {
-                    text: formatDate(modelData.datePublished) + "  " + formatDuration(modelData.duration)
+                    text: formatDate(modelData.datePublished) + "  " + formatDuration(modelData.duration) + "  " +
+                          mediaLabelFor(modelData.enclosureUrl, modelData.enclosureType)
                     color: "#b7c4e0"
                     font.pixelSize: 14
                     elide: Text.ElideRight
@@ -167,7 +219,7 @@ Page {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: page.startPlayback(modelData.enclosureUrl, modelData.title)
+                onClicked: page.startPlayback(modelData.enclosureUrl, modelData.title, modelData.enclosureType)
             }
         }
     }
@@ -205,7 +257,7 @@ Page {
 
             Button {
                 width: parent.width
-                text: audio.state === Audio.PlayingState ? qsTr("Pause") : qsTr("Play")
+                text: audio.state === audio.playingState ? qsTr("Pause") : qsTr("Play")
                 onClicked: page.togglePlayback()
             }
 
@@ -216,23 +268,33 @@ Page {
                 font.pixelSize: 14
                 wrapMode: Text.WordWrap
             }
+
+            Text {
+                width: parent.width
+                text: page.streamUrl && page.streamUrl.toString().length > 0
+                      ? qsTr("Source: %1").arg(mediaLabelFor(page.streamUrl, page.currentEnclosureType))
+                      : ""
+                color: "#93a3c4"
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
         }
     }
 
-    Audio {
+    AudioFacade {
         id: audio
         source: page.streamUrl
         volume: 1.0
         muted: false
 
         onStateChanged: {
-            page.isPlaying = (state === Audio.PlayingState);
+            page.isPlaying = (state === audio.playingState);
             page.updateStatus("");
         }
 
         onStatusChanged: {
             page.updateStatus("");
-            if (status === Audio.EndOfMedia) {
+            if (status === audio.endOfMedia) {
                 page.updateStatus(qsTr("End of media."));
             }
         }
