@@ -3,6 +3,7 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QTimer>
+#include <QtCore/QVariantMap>
 #include <QtCore/QVariantList>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
@@ -15,6 +16,7 @@ class PodcastIndexClient : public QObject
     Q_PROPERTY(QString errorMessage READ errorMessage NOTIFY errorMessageChanged)
     Q_PROPERTY(QVariantList podcasts READ podcasts NOTIFY podcastsChanged)
     Q_PROPERTY(QVariantList episodes READ episodes NOTIFY episodesChanged)
+    Q_PROPERTY(QVariantMap podcastDetail READ podcastDetail NOTIFY podcastDetailChanged)
 
 public:
     explicit PodcastIndexClient(QObject *parent = 0);
@@ -23,8 +25,11 @@ public:
     QString errorMessage() const;
     QVariantList podcasts() const;
     QVariantList episodes() const;
+    QVariantMap podcastDetail() const;
 
     Q_INVOKABLE void search(const QString &term);
+    Q_INVOKABLE void fetchPodcast(int feedId);
+    Q_INVOKABLE void fetchPodcastByGuid(const QString &guid);
     Q_INVOKABLE void fetchEpisodes(int feedId);
 
 signals:
@@ -32,6 +37,7 @@ signals:
     void errorMessageChanged();
     void podcastsChanged();
     void episodesChanged();
+    void podcastDetailChanged();
 
 private slots:
     void onReplyFinished();
@@ -42,6 +48,7 @@ private:
     enum RequestType {
         NoneRequest,
         SearchRequest,
+        PodcastRequest,
         EpisodesRequest
     };
 
@@ -51,6 +58,7 @@ private:
     void setErrorMessage(const QString &message);
     void setPodcasts(const QVariantList &podcasts);
     void setEpisodes(const QVariantList &episodes);
+    void setPodcastDetail(const QVariantMap &podcastDetail);
 
     QNetworkRequest buildRequest(const QUrl &url);
     QByteArray buildAuthorizationHeader(const QByteArray &apiKey,
@@ -58,6 +66,7 @@ private:
                                         const QByteArray &timestamp) const;
 
     QVariantList parseFeedList(const QVariant &root) const;
+    QVariantMap parsePodcastDetail(const QVariant &root) const;
     QVariantList parseEpisodeList(const QVariant &root) const;
     void logSslInfo();
 
@@ -71,6 +80,7 @@ private:
     QString m_errorMessage;
     QVariantList m_podcasts;
     QVariantList m_episodes;
+    QVariantMap m_podcastDetail;
     RequestType m_requestType;
     bool m_loggedSslInfo;
 };

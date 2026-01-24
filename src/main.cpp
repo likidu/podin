@@ -11,6 +11,7 @@
 #include <QtDeclarative/QDeclarativeEngine>
 
 #include "PodcastIndexClient.h"
+#include "StorageManager.h"
 #include "TlsChecker.h"
 
 namespace {
@@ -210,10 +211,12 @@ int main(int argc, char *argv[])
     applyPluginPaths();
 
     PodcastIndexClient apiClient;
+    StorageManager storage;
     TlsChecker tlsChecker;
 
     QDeclarativeView view;
     view.rootContext()->setContextProperty("apiClient", &apiClient);
+    view.rootContext()->setContextProperty("storage", &storage);
     view.rootContext()->setContextProperty("tlsChecker", &tlsChecker);
     applyImportPaths(view.engine());
 

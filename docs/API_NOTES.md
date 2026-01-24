@@ -20,6 +20,7 @@ Endpoints (initial)
 - GET /search/byterm?q=<term>&max=<n>
 - Required fields (list view):
   - id (feedId)
+  - podcastGuid (guid)
   - title
   - description
   - image or artwork
@@ -29,6 +30,7 @@ Endpoints (initial)
 - GET /podcasts/byfeedid?id=<feedId>
 - Required fields (detail view):
   - id (feedId)
+  - podcastGuid (guid)
   - title
   - description
   - image or artwork
@@ -44,6 +46,7 @@ Endpoints (initial)
   - datePublished (unix timestamp)
   - duration (seconds)
   - enclosureUrl (audio URL)
+  - enclosureType (mime type, if present)
   - image or feedImage
 
 Optional discovery (later)
@@ -64,6 +67,44 @@ Field mapping (UI)
 - datePublished -> formatted date
 - duration -> mm:ss
 - enclosureUrl -> player source
+ - enclosureType -> media label (mp3/m4a)
+
+Screen mapping (current MVP + planned)
+- Main/Search screen
+  - Endpoint: /search/byterm
+  - UI fields:
+    - feeds[].id -> feedId (used to fetch episodes)
+    - feeds[].title -> list title
+    - feeds[].description -> list subtitle
+    - feeds[].image/artwork -> list image
+- Podcast detail screen (planned)
+  - Endpoint: /podcasts/byfeedid or /podcasts/byguid
+  - UI fields:
+    - feed.id -> feedId (for subscribe + episode fetch)
+    - feed.title -> title
+    - feed.description -> long description
+    - feed.image/artwork -> cover
+    - feed.author -> byline (optional)
+    - feed.url -> feed URL (optional)
+- Episodes screen (current)
+  - Endpoint: /episodes/byfeedid
+  - UI fields:
+    - items[].title -> episode title
+    - items[].datePublished -> date label
+    - items[].duration -> duration label
+    - items[].enclosureUrl -> playable URL
+    - items[].enclosureType -> media label
+    - items[].image/feedImage -> (optional) artwork
+- Player panel (current, embedded in EpisodesPage)
+  - Uses: title + enclosureUrl + duration + enclosureType
+- Optional discovery screen (later)
+  - Endpoints: /recent/episodes, /trending
+  - Same episode fields as above.
+
+Normalized fields exposed to QML (current code)
+- Podcast list items: feedId, title, description, image
+- Podcast list items: guid (when available)
+- Episode list items: id, title, description, datePublished, duration, enclosureUrl, enclosureType, image
 
 Error handling
 - Non-200 responses: show error and keep cached data if present.

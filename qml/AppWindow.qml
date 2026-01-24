@@ -18,6 +18,22 @@ PodinPageStackWindow {
         }
     }
 
+    function openSubscriptions() {
+        var current = pageStack.currentPage;
+        if (current && current.objectName === "SubscriptionsPage") {
+            return;
+        }
+        pageStack.push(Qt.resolvedUrl("SubscriptionsPage.qml"), { tools: toolBarLayout, playback: playback });
+    }
+
+    function openPlayer() {
+        var current = pageStack.currentPage;
+        if (current && current.objectName === "PlayerPage") {
+            return;
+        }
+        pageStack.push(Qt.resolvedUrl("PlayerPage.qml"), { tools: toolBarLayout, playback: playback });
+    }
+
     ToolBarLayout {
         id: toolBarLayout
         ToolButton {
@@ -25,15 +41,26 @@ PodinPageStackWindow {
             iconSource: "toolbar-back"
             onClicked: window.handleBack()
         }
+        ToolButton {
+            flat: true
+            iconSource: "toolbar-settings"
+            onClicked: window.openSubscriptions()
+        }
+        ToolButton {
+            flat: true
+            iconSource: "toolbar-next"
+            onClicked: window.openPlayer()
+        }
+    }
+
+    PlaybackController {
+        id: playback
     }
 
     initialPage: MainPage {
         id: mainPage
         tools: toolBarLayout
-        onRequestEpisodes: {
-            var params = { feedId: feedId, podcastTitle: title, tools: toolBarLayout };
-            window.pageStack.push(Qt.resolvedUrl("EpisodesPage.qml"), params);
-        }
+        playback: playback
     }
 
     Keys.onReleased: {

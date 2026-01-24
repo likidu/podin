@@ -19,9 +19,16 @@ Item {
     property int stoppedState: 0
     property int playingState: 1
     property int pausedState: 2
+    // Match QMediaPlayer::MediaStatus enum ordering in Qt 4.7 (0..8).
     property int unknownStatus: 0
-    property int endOfMedia: 6
-    property int invalidMedia: 7
+    property int noMediaStatus: 1
+    property int loadingStatus: 2
+    property int loadedStatus: 3
+    property int stalledStatus: 4
+    property int bufferingStatus: 5
+    property int bufferedStatus: 6
+    property int endOfMedia: 7
+    property int invalidMedia: 8
 
     signal error()
 
@@ -77,6 +84,13 @@ Item {
             _impl.stop();
         } else {
             state = stoppedState;
+        }
+    }
+
+    function seek(positionMs) {
+        ensureImpl();
+        if (_impl && _impl.seek) {
+            _impl.seek(positionMs);
         }
     }
 
