@@ -67,6 +67,11 @@ QVariantList PodcastIndexClient::episodes() const
     return m_episodes;
 }
 
+QVariantMap PodcastIndexClient::podcastDetail() const
+{
+    return m_podcastDetail;
+}
+
 void PodcastIndexClient::search(const QString &term)
 {
     const QString trimmed = term.trimmed();
@@ -85,6 +90,43 @@ void PodcastIndexClient::search(const QString &term)
     url.addQueryItem(QString::fromLatin1("max"), QString::fromLatin1("10"));
 
     startRequest(SearchRequest, url);
+}
+
+void PodcastIndexClient::fetchPodcast(int feedId)
+{
+    if (feedId <= 0) {
+        setErrorMessage(QString::fromLatin1("Invalid feed id."));
+        return;
+    }
+
+    if (apiKey().isEmpty() || apiSecret().isEmpty()) {
+        setErrorMessage(QString::fromLatin1("Missing API credentials. Set PODIN_API_KEY/PODIN_API_SECRET or defaults in PodcastIndexConfig.h."));
+        return;
+    }
+
+    QUrl url = PodcastIndexConfig::buildUrl(QString::fromLatin1("podcasts/byfeedid"));
+    url.addQueryItem(QString::fromLatin1("id"), QString::number(feedId));
+
+    startRequest(PodcastRequest, url);
+}
+
+void PodcastIndexClient::fetchPodcastByGuid(const QString &guid)
+{
+    const QString trimmed = guid.trimmed();
+    if (trimmed.isEmpty()) {
+        setErrorMessage(QString::fromLatin1("Missing podcast GUID."));
+        return;
+    }
+
+    if (apiKey().isEmpty() || apiSecret().isEmpty()) {
+        setErrorMessage(QString::fromLatin1("Missing API credentials. Set PODIN_API_KEY/PODIN_API_SECRET or defaults in PodcastIndexConfig.h."));
+        return;
+    }
+
+    QUrl url = PodcastIndexConfig::buildUrl(QString::fromLatin1("podcasts/byguid"));
+    url.addQueryItem(QString::fromLatin1("guid"), trimmed);
+
+    startRequest(PodcastRequest, url);
 }
 
 void PodcastIndexClient::fetchEpisodes(int feedId)
@@ -120,6 +162,8 @@ void PodcastIndexClient::startRequest(RequestType type, const QUrl &url)
     }
     if (type == SearchRequest) {
         setPodcasts(QVariantList());
+    } else if (type == PodcastRequest) {
+        setPodcastDetail(QVariantMap());
     } else if (type == EpisodesRequest) {
         setEpisodes(QVariantList());
     }
@@ -175,6 +219,12 @@ void PodcastIndexClient::setEpisodes(const QVariantList &episodes)
     emit episodesChanged();
 }
 
+void PodcastIndexClient::setPodcastDetail(const QVariantMap &podcastDetail)
+{
+    m_podcastDetail = podcastDetail;
+    emit podcastDetailChanged();
+}
+
 QNetworkRequest PodcastIndexClient::buildRequest(const QUrl &url)
 {
     QNetworkRequest request(url);
@@ -213,12 +263,14 @@ QVariantList PodcastIndexClient::parseFeedList(const QVariant &root) const
     for (int i = 0; i < feeds.size(); ++i) {
         const QVariantMap feed = feeds.at(i).toMap();
         const int feedId = pickValue(feed, "id", "feedId").toInt();
+        const QString guid = pickString(feed, "podcastGuid", "guid");
         const QString title = pickString(feed, "title");
         const QString image = pickString(feed, "image", "artwork");
         const QString description = pickString(feed, "description");
 
         QVariantMap entry;
         entry.insert(QString::fromLatin1("feedId"), feedId);
+        entry.insert(QString::fromLatin1("guid"), guid);
         entry.insert(QString::fromLatin1("title"), title);
         entry.insert(QString::fromLatin1("image"), image);
         entry.insert(QString::fromLatin1("description"), description);
@@ -260,6 +312,35 @@ QVariantList PodcastIndexClient::parseEpisodeList(const QVariant &root) const
     }
 
     return results;
+}
+
+QVariantMap PodcastIndexClient::parsePodcastDetail(const QVariant &root) const
+{
+    const QVariantMap map = root.toMap();
+    const QVariantMap feed = map.value(QString::fromLatin1("feed")).toMap();
+
+    if (feed.isEmpty()) {
+        return QVariantMap();
+    }
+
+    const int feedId = pickValue(feed, "id", "feedId").toInt();
+    const QString guid = pickString(feed, "podcastGuid", "guid");
+    const QString title = pickString(feed, "title");
+    const QString description = pickString(feed, "description");
+    const QString image = pickString(feed, "image", "artwork");
+    const QString author = pickString(feed, "author", "ownerName");
+    const QString url = pickString(feed, "url", "link");
+
+    QVariantMap entry;
+    entry.insert(QString::fromLatin1("feedId"), feedId);
+    entry.insert(QString::fromLatin1("guid"), guid);
+    entry.insert(QString::fromLatin1("title"), title);
+    entry.insert(QString::fromLatin1("description"), description);
+    entry.insert(QString::fromLatin1("image"), image);
+    entry.insert(QString::fromLatin1("author"), author);
+    entry.insert(QString::fromLatin1("url"), url);
+
+    return entry;
 }
 
 QByteArray PodcastIndexClient::apiKey() const
@@ -315,6 +396,8 @@ void PodcastIndexClient::onReplyFinished()
 
     if (m_requestType == SearchRequest) {
         setPodcasts(parseFeedList(result));
+    } else if (m_requestType == PodcastRequest) {
+        setPodcastDetail(parsePodcastDetail(result));
     } else if (m_requestType == EpisodesRequest) {
         setEpisodes(parseEpisodeList(result));
     }

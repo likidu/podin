@@ -1,7 +1,7 @@
 Podcast Index Client for Symbian Belle (Qt 4.7+ + QML)
 ======================================================
 
-Milestone 0 — Scope, constraints, and API mapping
+Milestone 0 — Scope, constraints, and API mapping (done)
 - Goals: playback-centric, no social/account sync, local-only subscriptions/downloads.
 - Targets: Symbian Belle, Qt 4.7+, QML 1.1; use existing TLS 1.2 scaffold.
 - API decisions (initial set):
@@ -14,8 +14,14 @@ Milestone 0 — Scope, constraints, and API mapping
   - Later: "Podcast Index login" = user-provided API key/secret UI.
 - Deliverable: short spec doc mapping screens to API endpoints and required fields.
 - Acceptance: spec lists minimal fields needed per endpoint and how they map to UI.
+Status notes:
+- Implemented: /search/byterm and /episodes/byfeedid are wired in C++ client.
+- Implemented: /podcasts/byfeedid wired for detail screen.
+- Implemented: /podcasts/byguid fallback when feedId is missing.
+- Pending: /recent/episodes, /trending.
+- Done: spec doc mapping screens to API fields (docs/API_NOTES.md).
 
-Milestone 1 — App architecture and data flow
+Milestone 1 — App architecture and data flow (mostly done)
 - Define a clean separation:
   - QML UI layer
   - C++ API client (QNetworkAccessManager + TLS v1.2)
@@ -28,8 +34,14 @@ Milestone 1 — App architecture and data flow
   - Hook points for auth/signing headers.
 - Deliverable: minimal C++ service skeleton exposing "search()", "getPodcast()", "getEpisodes()".
 - Acceptance: can compile and run with mock/fake JSON and show data in QML list.
+Status notes:
+- Done: C++ client with QNetworkAccessManager + QJson parsing + timeouts + errors.
+- Done: search() and fetchEpisodes() exposed to QML.
+- Done: auth header signing (HMAC SHA1 style) + env/default API key/secret.
+- Pending: storage layer.
+- Pending: retries/backoff.
 
-Milestone 2 — Minimal UI shell in QML
+Milestone 2 — Minimal UI shell in QML (partial)
 - QML screens (simple, phone-friendly):
   1) Search screen (text input + results list)
   2) Podcast detail (art, title, description, subscribe)
@@ -39,8 +51,15 @@ Milestone 2 — Minimal UI shell in QML
 - Add loading and error states (empty list, API error).
 - Deliverable: QML screens wired to placeholder models.
 - Acceptance: navigation flow works with mock data; no crashes on back/forward.
+Status notes:
+- Done: search screen + results list.
+- Done: episodes list + embedded player panel.
+- Done: loading/error/empty states.
+- Done: dedicated podcast detail screen (search -> detail -> episodes).
+- Done: dedicated player screen wired from episodes page.
+- Done: seek UI/control (player panel + player screen).
 
-Milestone 3 — Core data + playback
+Milestone 3 — Core data + playback (partial)
 - Implement live API fetch:
   - Search by term -> list of podcasts
   - Podcast detail -> episodes
@@ -53,8 +72,14 @@ Milestone 3 — Core data + playback
   - Track current time, duration, buffer state.
 - Deliverable: Search -> open podcast -> play episode.
 - Acceptance: audio plays, pause/resume/seek works, UI updates progress.
+Status notes:
+- Done: live API fetch for search + episodes.
+- Done: playback via QtMultimediaKit Audio (AudioFacade wrapper).
+- Done: position/duration reflected in UI.
+- Done: podcast detail API screen uses /podcasts/byfeedid.
+- Done: seek slider and buffer/status text in player panel.
 
-Milestone 4 — Local state and offline basics
+Milestone 4 — Local state and offline basics (in progress)
 - Storage:
   - Subscriptions table: feedId, title, image, lastUpdated
   - Episode table: id/guid, feedId, title, audioUrl, duration, localPath, playedPosition
@@ -65,24 +90,35 @@ Milestone 4 — Local state and offline basics
 - Optional: episode download (store file path, basic progress)
 - Deliverable: local subscription management and playback resume.
 - Acceptance: subscribe persists across app restart; resume from last position.
+Status notes:
+- In progress: SQLite storage manager + schema creation.
+- Done: subscriptions page + toolbar entry.
+- Done: subscribe/unsubscribe from podcast detail page.
+- In progress: resume playback position stored per episode.
 
-Milestone 5 — Robustness and UX polish
+Milestone 5 — Robustness and UX polish (partial)
 - Error handling: network failures, missing audio URLs, rate limits.
 - Offline behavior: show cached subscriptions/episodes.
 - Performance: image caching (local file cache), lazy loading for lists.
 - Bandwidth controls: "stream only" vs "download on tap".
 - Deliverable: smoother user experience without adding extra features.
 - Acceptance: app does not hang on bad network; graceful fallback UI.
+Status notes:
+- Done (extra): TLS 1.2 check UI and runtime diagnostics.
+- Pending: caching/offline behavior, image caching, bandwidth controls.
 
-Milestone 6 — Authentication and future "login" hook
+Milestone 6 — Authentication and future "login" hook (partial)
 - Add a settings screen for API key + secret (optional now, required later).
 - Implement signing helper (HMAC SHA1 per Podcast Index spec):
   - X-Auth-Key, X-Auth-Date, Authorization
 - Keep it modular to allow later "login" UI replacement.
 - Deliverable: signed requests when keys are set; fallback warning if not.
 - Acceptance: verified with live API using user-provided keys.
+Status notes:
+- Done: auth headers and env/default key/secret support in C++ client.
+- Pending: settings UI for user-provided keys.
 
-Milestone 7 — Packaging and verification
+Milestone 7 — Packaging and verification (partial)
 - Symbian packaging: .sis build, signing workflow notes.
 - Manual test checklist:
   - Search, load, play, pause, seek, resume
@@ -90,3 +126,6 @@ Milestone 7 — Packaging and verification
   - Error states (no network, invalid key)
 - Deliverable: release checklist + build steps.
 - Acceptance: build produced on target device or emulator.
+Status notes:
+- Done: simulator build scripts and README build/run steps.
+- Pending: Symbian .sis packaging notes + checklist.

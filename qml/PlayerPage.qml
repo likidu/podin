@@ -1,281 +1,315 @@
 import QtQuick 1.1
-import QtMultimediaKit 1.1
 import com.nokia.symbian 1.1
 
 Page {
     id: page
+    objectName: "PlayerPage"
     orientationLock: PageOrientation.LockPortrait
 
-    property url streamUrl: ""
-    property string statusMessage: qsTr("Ready to stream.")
-    property bool isPlaying: false
-    property bool pendingPlay: false
-    property url mp3StreamUrl: "https://download.samplelib.com/mp3/sample-15s.mp3"
-    property url m4aStreamUrl: "https://aod.cos.tx.xmcdn.com/storages/6c79-audiofreehighqps/EA/B0/GKwRIasMsJJ4AX5FHwQZjPaQ.m4a"
-    property string selectedStreamId: "mp3"
+    property QtObject playback: null
+    property string statusMessage: qsTr("Ready to play.")
+    property bool updatingSlider: false
 
-    Rectangle {
-        anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#1e2a48" }
-            GradientStop { position: 1.0; color: "#101624" }
+    function isPlaybackActive() {
+        if (!playback) {
+            return false;
         }
+        if (playback.manualPaused) {
+            return false;
+        }
+        if (playback.isPlaying) {
+            return true;
+        }
+        if (playback.state === playback.playingState) {
+            return true;
+        }
+        var st = playback.status;
+        return (st === playback.loadingStatus ||
+                st === playback.bufferingStatus ||
+                st === playback.loadedStatus ||
+                st === playback.bufferedStatus ||
+                st === playback.stalledStatus);
     }
 
-    function stateName(state) {
-        switch (state) {
-        case Audio.PlayingState:
-            return qsTr("Playing");
-        case Audio.PausedState:
-            return qsTr("Paused");
-        default:
-            return qsTr("Stopped");
+    function formatDuration(seconds) {
+        if (!seconds || seconds < 0) {
+            return "0:00";
         }
+        var minutes = Math.floor(seconds / 60);
+        var remaining = Math.floor(seconds % 60);
+        return minutes + ":" + (remaining < 10 ? "0" + remaining : remaining);
+    }
+
+    function mediaLabelFor(url, enclosureTypeValue) {
+        var type = enclosureTypeValue ? enclosureTypeValue.toString().toLowerCase() : "";
+        if (type.indexOf("audio/mpeg") !== -1 || type.indexOf("audio/mp3") !== -1) {
+            return "mp3";
+        }
+        if (type.indexOf("audio/mp4") !== -1 || type.indexOf("audio/m4a") !== -1 || type.indexOf("audio/aac") !== -1) {
+            return "m4a";
+        }
+        var urlString = url ? (url.toString ? url.toString() : url) : "";
+        var path = urlString.split("?")[0];
+        var dot = path.lastIndexOf(".");
+        if (dot !== -1) {
+            var ext = path.slice(dot + 1).toLowerCase();
+            if (ext === "mp3") {
+                return "mp3";
+            }
+            if (ext === "m4a" || ext === "mp4" || ext === "aac") {
+                return "m4a";
+            }
+            if (ext.length > 0 && ext.length <= 5) {
+                return ext;
+            }
+        }
+        return "unknown";
     }
 
     function backendStatusName(status) {
-        switch (status) {
-        case Audio.NoMedia:
-            return qsTr("No media");
-        case Audio.Loading:
-            return qsTr("Loading");
-        case Audio.Loaded:
-            return qsTr("Loaded");
-        case Audio.Buffering:
-            return qsTr("Buffering");
-        case Audio.Stalled:
-            return qsTr("Stalled");
-        case Audio.Buffered:
-            return qsTr("Buffered");
-        case Audio.EndOfMedia:
-            return qsTr("End of media");
-        case Audio.InvalidMedia:
-            return qsTr("Invalid media");
-        default:
+        if (!playback) {
             return qsTr("Unknown");
         }
-    }
-
-    function streamUrlForSelection(selection) {
-        return selection === "m4a" ? page.m4aStreamUrl : page.mp3StreamUrl;
-    }
-
-    function urlToString(value) {
-        if (!value) {
-            return "";
+        if (status === playback.noMediaStatus) {
+            return qsTr("No media");
         }
-        return value.toString ? value.toString() : value;
-    }
-
-    function urlsEqual(lhs, rhs) {
-        return urlToString(lhs) === urlToString(rhs);
-    }
-
-    function updateSelectionFromUrl(url) {
-        var desired = urlsEqual(url, page.m4aStreamUrl) ? "m4a" : "mp3";
-        if (page.selectedStreamId !== desired) {
-            page.selectedStreamId = desired;
-        } else {
-            page.updateRadioSelection();
+        if (status === playback.loadingStatus) {
+            return qsTr("Loading");
         }
+        if (status === playback.loadedStatus) {
+            return qsTr("Loaded");
+        }
+        if (status === playback.bufferingStatus) {
+            return qsTr("Buffering");
+        }
+        if (status === playback.stalledStatus) {
+            return qsTr("Stalled");
+        }
+        if (status === playback.bufferedStatus) {
+            return qsTr("Buffered");
+        }
+        if (status === playback.endOfMedia) {
+            return qsTr("End of media");
+        }
+        if (status === playback.invalidMedia) {
+            return qsTr("Invalid media");
+        }
+        return qsTr("Unknown");
     }
 
-    function updateRadioSelection() {
-        var mp3Selected = page.selectedStreamId === "mp3";
-        if (mp3Radio && mp3Radio.checked !== mp3Selected) {
-            mp3Radio.checked = mp3Selected;
+    function updateStatus(note) {
+        if (!playback) {
+            return;
         }
-        var m4aSelected = page.selectedStreamId === "m4a";
-        if (m4aRadio && m4aRadio.checked !== m4aSelected) {
-            m4aRadio.checked = m4aSelected;
-        }
-    }
-
-    function updateStatus(extra) {
-        var playback = stateName(audio.state);
-        var backend = backendStatusName(audio.status);
-        var seconds = (audio.position / 1000).toFixed(1);
-        var stream = urlToString(page.streamUrl);
-        var base = qsTr("Stream URL: %1\n").arg(stream);
-        base = base + qsTr("Playback: %1\nStatus: %2\nPosition: %3 s").arg(playback).arg(backend).arg(seconds);
-        if (extra && extra.length > 0) {
-            base = base + "\n" + extra;
+        var stateText = isPlaybackActive() ? qsTr("Playing")
+                        : (playback.manualPaused || playback.state === playback.pausedState) ? qsTr("Paused")
+                        : qsTr("Stopped");
+        var statusText = backendStatusName(playback.status);
+        var position = formatDuration(playback.position / 1000);
+        var duration = formatDuration(playback.duration / 1000);
+        var base = stateText + " • " + statusText + "\n" + position + " / " + duration;
+        if (note && note.length > 0) {
+            base = note + "\n" + base;
         }
         page.statusMessage = base;
     }
 
-    function selectStream(streamId) {
-        if (!streamId) {
+    function syncSeekSlider() {
+        if (!playback || page.updatingSlider || seekSlider.pressed) {
             return;
         }
-        if (page.selectedStreamId === streamId) {
-            page.updateRadioSelection();
-            updateStatus("");
-            return;
-        }
-        page.selectedStreamId = streamId;
+        page.updatingSlider = true;
+        seekSlider.value = playback.position;
+        page.updatingSlider = false;
     }
 
-    function startPlayback() {
-        var desiredUrl = page.streamUrlForSelection(page.selectedStreamId);
-        if (!urlsEqual(page.streamUrl, desiredUrl)) {
-            page.streamUrl = desiredUrl;
-        }
-        var targetUrl = urlToString(page.streamUrl);
-        if (targetUrl.length === 0) {
-            updateStatus(qsTr("No stream URL configured."));
-            return;
-        }
-        if (audio.status === Audio.Loaded || audio.status === Audio.Buffered) {
-            audio.play();
-            page.isPlaying = true;
-            page.pendingPlay = false;
-            updateStatus(qsTr("Starting playback..."));
+    function backToEpisodes() {
+        if (pageStack) {
+            pageStack.pop();
         } else {
-            page.pendingPlay = true;
-            updateStatus(qsTr("Preparing stream..."));
+            Qt.quit();
         }
     }
 
-    function togglePlayback() {
-        if (page.isPlaying) {
-            stopPlayback();
-        } else {
-            startPlayback();
-        }
-    }
-
-    function stopPlayback(extra) {
-        var wasActive = page.isPlaying || page.pendingPlay;
-        if (wasActive) {
-            audio.stop();
-        }
-        page.isPlaying = false;
-        page.pendingPlay = false;
-        var note = extra;
-        if (note === undefined) {
-            note = wasActive ? qsTr("Playback stopped.") : qsTr("Ready to stream.");
-        }
-        updateStatus(note);
-    }
-
-    onSelectedStreamIdChanged: {
-        page.updateRadioSelection();
-        var next = page.streamUrlForSelection(page.selectedStreamId);
-        if (!urlsEqual(page.streamUrl, next)) {
-            page.streamUrl = next;
-        } else if (!page.isPlaying && !page.pendingPlay) {
-            updateStatus("");
-        }
-    }
-
-    onStreamUrlChanged: {
-        var streamString = urlToString(page.streamUrl);
-        if (streamString.length > 0 && !urlsEqual(page.streamUrl, page.m4aStreamUrl)) {
-            page.mp3StreamUrl = page.streamUrl;
-        }
-        if (page.isPlaying || page.pendingPlay) {
-            stopPlayback("");
-        } else {
-            page.isPlaying = false;
-            page.pendingPlay = false;
-            updateStatus("");
-        }
-        page.updateSelectionFromUrl(page.streamUrl);
-    }
-
-    onStatusChanged: {
-        if (status === PageStatus.Inactive) {
-            stopPlayback();
-        }
-    }
-
-    Audio {
-        id: audio
-        source: page.streamUrl
-        volume: 1.0
-        muted: false
-        onStatusChanged: {
-            page.updateStatus("");
-            if (status === Audio.EndOfMedia) {
-                page.isPlaying = false;
-                page.pendingPlay = false;
-                page.updateStatus(qsTr("End of media."));
-            } else if ((status === Audio.Loaded || status === Audio.Buffered) && page.pendingPlay) {
-                audio.play();
-                page.isPlaying = true;
-                page.pendingPlay = false;
-                page.updateStatus("");
-            } else if (status === Audio.NoMedia) {
-                page.isPlaying = false;
-            }
-        }
-        onPositionChanged: page.updateStatus("")
-        onError: {
-            page.isPlaying = false;
-            page.pendingPlay = false;
-            page.updateStatus(qsTr("Error: %1").arg(errorString));
+    Rectangle {
+        anchors.fill: parent
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#1f2a43" }
+            GradientStop { position: 1.0; color: "#0f1524" }
         }
     }
 
     Column {
-        anchors.centerIn: parent
-        spacing: 16
-        width: parent.width - 64
+        id: content
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.margins: 16
+        spacing: 10
 
-        Column {
-            id: streamSelector
+        Text {
             width: parent.width
-            spacing: 8
+            text: playback && playback.episodeTitle.length > 0 ? playback.episodeTitle : qsTr("Player")
+            color: platformStyle.colorNormalLight
+            font.pixelSize: 20
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+        }
 
-            Text {
-                width: parent.width
-                text: qsTr("Stream format")
-                font.pixelSize: 18
-                color: platformStyle.colorNormalLight
-            }
+        Text {
+            width: parent.width
+            text: playback && playback.podcastTitle.length > 0 ? playback.podcastTitle : ""
+            color: "#b7c4e0"
+            font.pixelSize: 14
+            horizontalAlignment: Text.AlignHCenter
+            visible: playback ? (playback.podcastTitle.length > 0) : false
+        }
 
-            Row {
-                spacing: 24
+        Text {
+            width: parent.width
+            text: playback && playback.streamUrl && playback.streamUrl.toString().length > 0
+                  ? qsTr("Source: %1").arg(mediaLabelFor(playback.streamUrl, playback.enclosureType))
+                  : ""
+            color: "#93a3c4"
+            font.pixelSize: 12
+            horizontalAlignment: Text.AlignHCenter
+            visible: playback
+                     ? (playback.streamUrl && playback.streamUrl.toString().length > 0 ? true : false)
+                     : false
+        }
 
-                RadioButton {
-                    id: mp3Radio
-                    text: qsTr("MP3")
-                    onClicked: page.selectStream("mp3")
+        Slider {
+            id: seekSlider
+            width: parent.width
+            minimumValue: 0
+            maximumValue: playback && playback.duration > 0 ? playback.duration : 1
+            value: 0
+            enabled: playback ? (playback.duration > 0 && playback.available) : false
+            onValueChanged: {
+                if (!playback || page.updatingSlider) {
+                    return;
                 }
+                playback.seek(value);
+            }
+        }
 
-                RadioButton {
-                    id: m4aRadio
-                    text: qsTr("M4A")
-                    onClicked: page.selectStream("m4a")
+        Text {
+            width: parent.width
+            text: qsTr("Buffering...")
+            color: "#ffd6d9"
+            font.pixelSize: 12
+            horizontalAlignment: Text.AlignHCenter
+            visible: playback
+                     ? (isPlaybackActive() &&
+                        (playback.status === playback.bufferingStatus ||
+                         playback.status === playback.loadingStatus ||
+                         playback.status === playback.stalledStatus))
+                     : false
+        }
+
+        Button {
+            width: parent.width
+            text: isPlaybackActive() ? qsTr("Pause") : qsTr("Play")
+            onClicked: {
+                if (!playback) {
+                    return;
+                }
+                if (isPlaybackActive()) {
+                    playback.pause();
+                } else {
+                    playback.play();
                 }
             }
         }
 
-        Button {
-            id: playPauseButton
+        Row {
             width: parent.width
-            text: page.isPlaying ? qsTr("Pause") : qsTr("Play")
-            onClicked: page.togglePlayback()
+            spacing: 8
+
+            Button {
+                width: (parent.width - 8) / 2
+                text: qsTr("Stop")
+                onClicked: {
+                    if (playback) {
+                        playback.stop();
+                    }
+                }
+            }
+
+            Button {
+                width: (parent.width - 8) / 2
+                text: qsTr("Back to list")
+                onClicked: page.backToEpisodes()
+            }
         }
 
         Text {
             width: parent.width
             text: page.statusMessage
-            font.pixelSize: 18
-            color: platformStyle.colorNormalLight
+            color: "#b7c4e0"
+            font.pixelSize: 14
             wrapMode: Text.WordWrap
         }
     }
 
-    Component.onCompleted: {
-        var currentUrl = urlToString(page.streamUrl);
-        if (currentUrl.length === 0) {
-            page.streamUrl = page.streamUrlForSelection(page.selectedStreamId);
-        } else if (!urlsEqual(page.streamUrl, page.m4aStreamUrl)) {
-            page.mp3StreamUrl = page.streamUrl;
+    Rectangle {
+        id: debugOverlay
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: 90
+        color: "#00000088"
+        visible: true
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 2
+
+            Text {
+                width: parent.width
+                text: playback ? ("state=" + playback.state +
+                                  " status=" + playback.status +
+                                  " pos=" + playback.position +
+                                  " dur=" + playback.duration) : "state=N/A"
+                color: "#ffffff"
+                font.pixelSize: 11
+                elide: Text.ElideRight
+            }
+
+            Text {
+                width: parent.width
+                text: playback ? ("playing=" + playback.isPlaying +
+                                  " paused=" + playback.manualPaused +
+                                  " pendingSeek=" + playback.pendingSeekMs +
+                                  " resumeApplied=" + playback.resumeApplied) : "flags=N/A"
+                color: "#d0d0d0"
+                font.pixelSize: 11
+                elide: Text.ElideRight
+            }
+
+            Text {
+                width: parent.width
+                text: playback ? ("url=" + (playback.streamUrl ? playback.streamUrl.toString() : "")) : "url=N/A"
+                color: "#b0b0b0"
+                font.pixelSize: 10
+                elide: Text.ElideRight
+            }
         }
-        page.updateSelectionFromUrl(page.streamUrl);
-        updateStatus("");
+    }
+
+    Connections {
+        target: playback
+        onPositionChanged: {
+            page.syncSeekSlider();
+            page.updateStatus("");
+        }
+        onDurationChanged: page.syncSeekSlider()
+        onStateChanged: page.updateStatus("")
+        onStatusChanged: page.updateStatus("")
+    }
+
+    Component.onCompleted: {
+        page.updateStatus("");
     }
 }

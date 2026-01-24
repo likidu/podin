@@ -2,7 +2,10 @@
     <qresource prefix="/qml">
         <file>MainPage.qml</file>
         <file>EpisodesPage.qml</file>
+        <file>PodcastDetailPage.qml</file>
         <file>PlayerPage.qml</file>
+        <file>PlaybackController.qml</file>
+        <file>SubscriptionsPage.qml</file>
         <file>AppWindow.qml</file>
         <file>PodinPageStackWindow.qml</file>
         <file>AudioFacade.qml</file>

@@ -2,7 +2,7 @@ TEMPLATE = app
 TARGET = Podin
 
 # Qt 4.x modules
-QT += core gui network declarative
+QT += core gui network declarative sql
 
 CONFIG -= debug_and_release
 CONFIG += debug
@@ -22,20 +22,25 @@ DEFINES += QJSON_STATIC
 SOURCES += \
     src/main.cpp \
     src/PodcastIndexClient.cpp \
-    src/TlsChecker.cpp
+    src/TlsChecker.cpp \
+    src/StorageManager.cpp
 
 HEADERS += \
     src/PodcastIndexClient.h \
     src/PodcastIndexConfig.h \
     src/TlsChecker.h \
-    src/ApiConfig.h
+    src/ApiConfig.h \
+    src/StorageManager.h
 
 RESOURCES += \
     qml/qml.qrc
 
 OTHER_FILES += \
     qml/MainPage.qml \
+    qml/PodcastDetailPage.qml \
     qml/EpisodesPage.qml \
     qml/PlayerPage.qml \
+    qml/PlaybackController.qml \
+    qml/SubscriptionsPage.qml \
     qml/PodinPageStackWindow.qml \
     qml/AudioFacade.qml

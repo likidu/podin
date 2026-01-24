@@ -5,11 +5,10 @@ Page {
     id: page
     orientationLock: PageOrientation.LockPortrait
 
+    property QtObject playback: null
     property bool hasSearched: false
     property string tlsStatus: qsTr("TLS check idle.")
     property bool tlsOk: true
-
-    signal requestEpisodes(int feedId, string title)
 
     Rectangle {
         id: background
@@ -23,6 +22,22 @@ Page {
     function startSearch() {
         page.hasSearched = true;
         apiClient.search(searchField.text);
+    }
+
+    function openPodcastDetails(podcast) {
+        if (!pageStack || !podcast) {
+            return;
+        }
+        var params = {
+            feedId: podcast.feedId,
+            podcastGuid: podcast.guid ? podcast.guid : "",
+            podcastTitle: podcast.title ? podcast.title : "",
+            podcastDescription: podcast.description ? podcast.description : "",
+            podcastImage: podcast.image ? podcast.image : "",
+            tools: page.tools,
+            playback: page.playback
+        };
+        pageStack.push(Qt.resolvedUrl("PodcastDetailPage.qml"), params);
     }
 
     Column {
@@ -157,7 +172,7 @@ Page {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: page.requestEpisodes(modelData.feedId, modelData.title)
+                onClicked: page.openPodcastDetails(modelData)
             }
         }
     }

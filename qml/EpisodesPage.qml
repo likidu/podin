@@ -7,13 +7,15 @@ Page {
 
     property int feedId: 0
     property string podcastTitle: ""
-    property string currentTitle: ""
-    property string currentEnclosureType: ""
-    property url streamUrl: ""
-    property bool isPlaying: false
+    property QtObject playback: null
     property bool hasLoaded: false
     property int lastRequestedFeedId: 0
-    property string statusMessage: qsTr("Select an episode to play.")
+    property string nowPlayingTitle: playback && playback.episodeTitle ? playback.episodeTitle : ""
+    property string nowPlayingMeta: ""
+    property url nowPlayingUrl: playback && playback.streamUrl ? playback.streamUrl : ""
+    property string nowPlayingEnclosureType: playback && playback.enclosureType ? playback.enclosureType : ""
+    property string nowPlayingEpisodeTitle: playback && playback.episodeTitle ? playback.episodeTitle : ""
+    property string nowPlayingEpisodeId: playback && playback.episodeId ? playback.episodeId : ""
 
     function mediaLabelFor(url, enclosureType) {
         var type = enclosureType ? enclosureType.toString().toLowerCase() : "";
@@ -62,55 +64,63 @@ Page {
                 (day < 10 ? "0" + day : day);
     }
 
-    function updateStatus(note) {
-        var stateText = audio.state === audio.playingState ? qsTr("Playing")
-                        : audio.state === audio.pausedState ? qsTr("Paused")
-                        : qsTr("Stopped");
-        var position = formatDuration(audio.position / 1000);
-        var duration = formatDuration(audio.duration / 1000);
-        var base = stateText + " " + position + " / " + duration;
-        if (note && note.length > 0) {
-            base = note + "\n" + base;
-        }
-        page.statusMessage = base;
-    }
-
-    function startPlayback(url, title, enclosureType) {
+    function openPlayerForItem(url, title, enclosureType, datePublished, durationSeconds, episodeId) {
         var urlString = url ? (url.toString ? url.toString() : url) : "";
         if (urlString.length === 0) {
-            updateStatus(qsTr("No audio URL available."));
             return;
         }
-        audio.ensureImpl();
-        if (!audio.available) {
-            updateStatus(qsTr("Audio playback unavailable in this runtime."));
+        if (!pageStack) {
             return;
         }
-        page.streamUrl = urlString;
-        page.currentTitle = title || "";
-        page.currentEnclosureType = enclosureType || "";
-        audio.play();
-        updateStatus(qsTr("Loading..."));
+        var epId = episodeId ? episodeId.toString() : "";
+        var epTitle = title || "";
+        var encType = enclosureType || "";
+        var metaParts = [];
+        var metaDate = formatDate(datePublished);
+        var metaDuration = formatDuration(durationSeconds);
+        var metaType = mediaLabelFor(url, encType);
+        if (metaDate.length > 0) {
+            metaParts.push(metaDate);
+        }
+        if (metaDuration.length > 0) {
+            metaParts.push(metaDuration);
+        }
+        if (metaType.length > 0) {
+            metaParts.push(metaType);
+        }
+        page.nowPlayingMeta = metaParts.join(" • ");
+        if (page.playback) {
+            var sameEpisode = (page.playback.streamUrl && page.playback.streamUrl.toString() === urlString) &&
+                              (page.playback.episodeId === epId);
+            if (!sameEpisode) {
+                page.playback.startEpisode(urlString,
+                                           epId,
+                                           page.feedId,
+                                           epTitle,
+                                           page.podcastTitle,
+                                           encType,
+                                           true);
+            }
+        }
+        var params = {
+            tools: page.tools,
+            playback: page.playback
+        };
+        pageStack.push(Qt.resolvedUrl("PlayerPage.qml"), params);
     }
 
-    function togglePlayback() {
-        audio.ensureImpl();
-        if (!audio.available) {
-            updateStatus(qsTr("Audio playback unavailable in this runtime."));
+    function openNowPlaying() {
+        if (!pageStack) {
             return;
         }
-        if (audio.state === audio.playingState) {
-            audio.pause();
-        } else if (page.streamUrl && page.streamUrl.toString().length > 0) {
-            audio.play();
-        } else {
-            updateStatus(qsTr("Select an episode to play."));
+        if (!page.nowPlayingUrl || page.nowPlayingUrl.toString().length === 0) {
+            return;
         }
-    }
-
-    function stopPlayback() {
-        audio.stop();
-        updateStatus(qsTr("Stopped."));
+        var params = {
+            tools: page.tools,
+            playback: page.playback
+        };
+        pageStack.push(Qt.resolvedUrl("PlayerPage.qml"), params);
     }
 
     function requestEpisodesIfReady() {
@@ -120,16 +130,11 @@ Page {
         }
     }
 
-    onStatusChanged: {
-        if (status === PageStatus.Inactive) {
-            stopPlayback();
-        }
-    }
-
     Component.onCompleted: {
         page.hasLoaded = true;
         requestEpisodesIfReady();
     }
+
 
     onFeedIdChanged: {
         if (page.hasLoaded) {
@@ -145,47 +150,127 @@ Page {
         }
     }
 
-    Column {
-        id: header
+    Rectangle {
+        id: headerBar
+        z: 3
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.topMargin: 12
-        spacing: 8
+        height: headerContent.height + 16
+        color: "#141c2e"
 
-        Text {
-            width: parent.width
-            text: page.podcastTitle.length > 0 ? page.podcastTitle : qsTr("Episodes")
-            font.pixelSize: 20
-            color: platformStyle.colorNormalLight
-            elide: Text.ElideRight
-            horizontalAlignment: Text.AlignHCenter
+        Column {
+            id: headerContent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: 8
+            spacing: 6
+
+            Text {
+                width: parent.width
+                text: page.podcastTitle.length > 0 ? page.podcastTitle : qsTr("Episodes")
+                font.pixelSize: 20
+                color: platformStyle.colorNormalLight
+                elide: Text.ElideRight
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            BusyIndicator {
+                running: apiClient.busy
+                visible: apiClient.busy
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            Text {
+                width: parent.width
+                text: apiClient.errorMessage
+                visible: apiClient.errorMessage.length > 0
+                color: "#ffd6d9"
+                font.pixelSize: 16
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+            }
+        }
+    }
+
+    Rectangle {
+        id: nowPlayingBanner
+        z: 2
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: 16
+        anchors.bottomMargin: 0
+        width: parent.width - 32
+        height: page.nowPlayingTitle.length > 0 ? 70 : 0
+        radius: 10
+        border.width: 1
+        border.color: "#2a3852"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#1a2436" }
+            GradientStop { position: 1.0; color: "#0f1526" }
+        }
+        visible: height > 0
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: page.openNowPlaying()
         }
 
-        BusyIndicator {
-            running: apiClient.busy
-            visible: apiClient.busy
-            anchors.horizontalCenter: parent.horizontalCenter
+        Rectangle {
+            width: 4
+            height: parent.height - 16
+            radius: 2
+            anchors.left: parent.left
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            color: "#5a7cff"
         }
 
-        Text {
-            width: parent.width
-            text: apiClient.errorMessage
-            visible: apiClient.errorMessage.length > 0
-            color: "#ffd6d9"
-            font.pixelSize: 16
-            wrapMode: Text.WordWrap
-            horizontalAlignment: Text.AlignHCenter
+        Column {
+            anchors.fill: parent
+            anchors.margins: 12
+            anchors.leftMargin: 24
+            spacing: 2
+
+            Text {
+                width: parent.width
+                text: qsTr("Now playing")
+                color: "#9fb0d3"
+                font.pixelSize: 12
+                font.capitalization: Font.AllUppercase
+            }
+
+            Text {
+                width: parent.width
+                text: page.nowPlayingTitle
+                color: platformStyle.colorNormalLight
+                font.pixelSize: 15
+                elide: Text.ElideRight
+            }
+
+            Text {
+                width: parent.width
+                text: page.nowPlayingMeta
+                color: "#93a3c4"
+                font.pixelSize: 12
+                elide: Text.ElideRight
+                visible: page.nowPlayingMeta.length > 0
+            }
         }
     }
 
     ListView {
         id: episodeList
-        anchors.top: header.bottom
+        z: 1
+        anchors.top: headerBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: playerPanel.top
+        anchors.bottom: parent.bottom
         anchors.margins: 16
+        anchors.bottomMargin: page.nowPlayingTitle.length > 0
+                               ? nowPlayingBanner.height
+                               : 0
         spacing: 8
         model: apiClient.episodes
 
@@ -219,7 +304,12 @@ Page {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: page.startPlayback(modelData.enclosureUrl, modelData.title, modelData.enclosureType)
+                onClicked: page.openPlayerForItem(modelData.enclosureUrl,
+                                                  modelData.title,
+                                                  modelData.enclosureType,
+                                                  modelData.datePublished,
+                                                  modelData.duration,
+                                                  modelData.id)
             }
         }
     }
@@ -232,77 +322,4 @@ Page {
         visible: page.hasLoaded && !apiClient.busy && apiClient.episodes.length === 0 && apiClient.errorMessage.length === 0
     }
 
-    Rectangle {
-        id: playerPanel
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: 150
-        color: "#0f1524"
-        border.width: 1
-        border.color: "#26314a"
-
-        Column {
-            anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
-
-            Text {
-                width: parent.width
-                text: page.currentTitle.length > 0 ? page.currentTitle : qsTr("No episode selected.")
-                color: platformStyle.colorNormalLight
-                font.pixelSize: 16
-                elide: Text.ElideRight
-            }
-
-            Button {
-                width: parent.width
-                text: audio.state === audio.playingState ? qsTr("Pause") : qsTr("Play")
-                onClicked: page.togglePlayback()
-            }
-
-            Text {
-                width: parent.width
-                text: page.statusMessage
-                color: "#b7c4e0"
-                font.pixelSize: 14
-                wrapMode: Text.WordWrap
-            }
-
-            Text {
-                width: parent.width
-                text: page.streamUrl && page.streamUrl.toString().length > 0
-                      ? qsTr("Source: %1").arg(mediaLabelFor(page.streamUrl, page.currentEnclosureType))
-                      : ""
-                color: "#93a3c4"
-                font.pixelSize: 12
-                wrapMode: Text.WordWrap
-            }
-        }
-    }
-
-    AudioFacade {
-        id: audio
-        source: page.streamUrl
-        volume: 1.0
-        muted: false
-
-        onStateChanged: {
-            page.isPlaying = (state === audio.playingState);
-            page.updateStatus("");
-        }
-
-        onStatusChanged: {
-            page.updateStatus("");
-            if (status === audio.endOfMedia) {
-                page.updateStatus(qsTr("End of media."));
-            }
-        }
-
-        onPositionChanged: page.updateStatus("")
-
-        onError: {
-            page.updateStatus(qsTr("Error: %1").arg(errorString));
-        }
-    }
 }
