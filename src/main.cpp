@@ -10,6 +10,7 @@
 #include <QtDeclarative/QDeclarativeContext>
 #include <QtDeclarative/QDeclarativeEngine>
 
+#include "PodcastIndexClient.h"
 #include "TlsChecker.h"
 
 namespace {
@@ -208,15 +209,17 @@ int main(int argc, char *argv[])
     ensureRuntimeLibraries();
     applyPluginPaths();
 
-    TlsChecker checker;
+    PodcastIndexClient apiClient;
+    TlsChecker tlsChecker;
 
     QDeclarativeView view;
-    view.rootContext()->setContextProperty("tlsChecker", &checker);
+    view.rootContext()->setContextProperty("apiClient", &apiClient);
+    view.rootContext()->setContextProperty("tlsChecker", &tlsChecker);
     applyImportPaths(view.engine());
 
     view.setSource(QUrl("qrc:/qml/AppWindow.qml"));
     view.setResizeMode(QDeclarativeView::SizeRootObjectToView);
-    view.setWindowTitle(QObject::tr("Qt TLS Check"));
+    view.setWindowTitle(QObject::tr("Podin"));
     view.setMinimumSize(QSize(360, 640));
     view.setMaximumSize(QSize(480, 800));
     view.resize(360, 640);
@@ -224,4 +227,3 @@ int main(int argc, char *argv[])
     view.show();
     return app.exec();
 }
-

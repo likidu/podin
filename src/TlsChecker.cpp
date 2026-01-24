@@ -108,6 +108,7 @@ void TlsChecker::startCheck()
     }
 
     const QUrl url(QString::fromLatin1("https://tls-v1-2.badssl.com:1012/"));
+    // const QUrl url(QString::fromLatin1("https://api.podcastindex.org/api/v1.0/recent/episodes?max=1"));
     QNetworkRequest req(url);
     req.setRawHeader("User-Agent", "Podin/1.0");
 
