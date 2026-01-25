@@ -36,11 +36,12 @@ RESOURCES += \
     qml/qml.qrc
 
 OTHER_FILES += \
-    qml/MainPage.qml \
+    qml/SearchPage.qml \
     qml/PodcastDetailPage.qml \
     qml/EpisodesPage.qml \
     qml/PlayerPage.qml \
     qml/PlaybackController.qml \
     qml/SubscriptionsPage.qml \
+    qml/SettingsPage.qml \
     qml/PodinPageStackWindow.qml \
     qml/AudioFacade.qml

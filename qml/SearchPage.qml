@@ -3,12 +3,11 @@ import com.nokia.symbian 1.1
 
 Page {
     id: page
+    objectName: "SearchPage"
     orientationLock: PageOrientation.LockPortrait
 
     property QtObject playback: null
     property bool hasSearched: false
-    property string tlsStatus: qsTr("TLS check idle.")
-    property bool tlsOk: true
 
     Rectangle {
         id: background
@@ -40,85 +39,104 @@ Page {
         pageStack.push(Qt.resolvedUrl("PodcastDetailPage.qml"), params);
     }
 
-    Column {
-        id: header
+    Item {
+        id: headerBar
         z: 1
-        anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
-        anchors.topMargin: 16
-        spacing: 12
-        width: parent.width - 32
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: headerContent.height + 24
 
-        Text {
-            width: parent.width
-            text: qsTr("Podcast Index")
-            font.pixelSize: 22
-            color: platformStyle.colorNormalLight
-            horizontalAlignment: Text.AlignHCenter
+        Rectangle {
+            anchors.fill: parent
+            color: "#1a2236"
+            opacity: 0.95
         }
 
-        TextField {
-            id: searchField
+        Rectangle {
             width: parent.width
-            text: qsTr("news")
-            placeholderText: qsTr("Search podcasts")
-            inputMethodHints: Qt.ImhNoPredictiveText
-            Keys.onReturnPressed: page.startSearch()
+            height: 1
+            anchors.bottom: parent.bottom
+            color: "#2d3a57"
         }
 
-        Button {
-            id: searchButton
-            width: parent.width
-            text: apiClient.busy ? qsTr("Searching...") : qsTr("Search")
-            enabled: !apiClient.busy
-            onClicked: page.startSearch()
-        }
+        Column {
+            id: headerContent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: 12
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            spacing: 10
 
-        Button {
-            id: tlsButton
-            width: parent.width
-            text: tlsChecker.running ? qsTr("Testing TLS...") : qsTr("Test TLS 1.2")
-            enabled: !tlsChecker.running
-            onClicked: {
-                page.tlsOk = true;
-                page.tlsStatus = qsTr("Running TLS check...");
-                tlsChecker.startCheck();
+            Text {
+                width: parent.width
+                text: qsTr("Podcast Index")
+                font.pixelSize: 22
+                color: platformStyle.colorNormalLight
+                horizontalAlignment: Text.AlignHCenter
             }
-        }
 
-        BusyIndicator {
-            running: apiClient.busy
-            visible: apiClient.busy
-            anchors.horizontalCenter: parent.horizontalCenter
-        }
+            Row {
+                width: parent.width
+                spacing: 6
 
-        Text {
-            width: parent.width
-            text: apiClient.errorMessage
-            visible: apiClient.errorMessage.length > 0
-            color: "#ffd6d9"
-            font.pixelSize: 16
-            wrapMode: Text.WordWrap
-            horizontalAlignment: Text.AlignHCenter
-        }
+                TextField {
+                    id: searchField
+                    width: parent.width - clearButton.width - 6
+                    text: qsTr("news")
+                    placeholderText: qsTr("Search podcasts")
+                    inputMethodHints: Qt.ImhNoPredictiveText
+                    Keys.onReturnPressed: page.startSearch()
+                }
 
-        Text {
-            width: parent.width
-            text: page.tlsStatus
-            color: page.tlsOk ? platformStyle.colorNormalLight : "#ffd6d9"
-            font.pixelSize: 16
-            wrapMode: Text.WordWrap
-            horizontalAlignment: Text.AlignHCenter
+                Button {
+                    id: clearButton
+                    width: 32
+                    height: searchField.height
+                    text: qsTr("x")
+                    enabled: searchField.text.length > 0
+                    onClicked: searchField.text = ""
+                }
+            }
+
+            Button {
+                id: searchButton
+                width: parent.width
+                text: apiClient.busy ? qsTr("Searching...") : qsTr("Search")
+                enabled: !apiClient.busy
+                onClicked: page.startSearch()
+            }
+
+            BusyIndicator {
+                running: apiClient.busy
+                visible: apiClient.busy
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            Text {
+                width: parent.width
+                text: apiClient.errorMessage
+                visible: apiClient.errorMessage.length > 0
+                color: "#ffd6d9"
+                font.pixelSize: 16
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
+            }
         }
     }
 
     ListView {
         id: podcastList
-        anchors.top: header.bottom
+        anchors.top: headerBar.bottom
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 16
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.topMargin: 8
+        anchors.bottomMargin: 16
         spacing: 8
         model: apiClient.podcasts
 
@@ -183,19 +201,5 @@ Page {
         color: platformStyle.colorNormalLight
         font.pixelSize: 18
         visible: page.hasSearched && !apiClient.busy && apiClient.podcasts.length === 0 && apiClient.errorMessage.length === 0
-    }
-
-    Connections {
-        target: tlsChecker
-        onFinished: {
-            page.tlsOk = ok;
-            page.tlsStatus = message;
-        }
-        onRunningChanged: {
-            if (tlsChecker.running) {
-                page.tlsOk = true;
-                page.tlsStatus = qsTr("Running TLS check...");
-            }
-        }
     }
 }

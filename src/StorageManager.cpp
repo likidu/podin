@@ -7,6 +7,7 @@
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlError>
 #include <QtSql/QSqlQuery>
+#include <QtCore/qglobal.h>
 
 namespace {
 const char *const kConnectionName = "podin";
@@ -24,14 +25,49 @@ void logError(const QString &context, const QSqlError &error)
 
 StorageManager::StorageManager(QObject *parent)
     : QObject(parent)
+    , m_forwardSkipSeconds(30)
+    , m_backwardSkipSeconds(15)
 {
     initDb();
+    loadSettings();
     refreshSubscriptions();
 }
 
 QVariantList StorageManager::subscriptions() const
 {
     return m_subscriptions;
+}
+
+int StorageManager::forwardSkipSeconds() const
+{
+    return m_forwardSkipSeconds;
+}
+
+int StorageManager::backwardSkipSeconds() const
+{
+    return m_backwardSkipSeconds;
+}
+
+void StorageManager::setForwardSkipSeconds(int seconds)
+{
+    int clamped = qBound(5, seconds, 60);
+    if (clamped == m_forwardSkipSeconds) {
+        return;
+    }
+    m_forwardSkipSeconds = clamped;
+    saveSetting(QString::fromLatin1("forward_skip_seconds"), m_forwardSkipSeconds);
+    emit forwardSkipSecondsChanged();
+}
+
+void StorageManager::setBackwardSkipSeconds(int seconds)
+{
+    int clamped = qBound(2, seconds, 30);
+    if (clamped == m_backwardSkipSeconds) {
+        return;
+    }
+    m_backwardSkipSeconds = clamped;
+    saveSetting(QString::fromLatin1("backward_skip_seconds"), m_backwardSkipSeconds);
+    emit backwardSkipSecondsChanged();
 }
 
 void StorageManager::refreshSubscriptions()
@@ -276,6 +312,22 @@ void StorageManager::initDb()
         logError("create episodes table", query.lastError());
     }
 
+    if (!query.exec(QLatin1String("CREATE TABLE IF NOT EXISTS settings ("
+                                  "key TEXT PRIMARY KEY, "
+                                  "value INTEGER)"))) {
+        logError("create settings table", query.lastError());
+    }
+
+    if (!query.exec(QLatin1String("INSERT OR IGNORE INTO settings (key, value) "
+                                  "VALUES ('forward_skip_seconds', 30)"))) {
+        logError("seed forward skip setting", query.lastError());
+    }
+
+    if (!query.exec(QLatin1String("INSERT OR IGNORE INTO settings (key, value) "
+                                  "VALUES ('backward_skip_seconds', 15)"))) {
+        logError("seed backward skip setting", query.lastError());
+    }
+
     QSqlQuery pragma(db);
     bool havePlayState = false;
     if (pragma.exec(QLatin1String("PRAGMA table_info(episodes)"))) {
@@ -300,6 +352,49 @@ void StorageManager::initDb()
     if (!query.exec(QLatin1String("CREATE INDEX IF NOT EXISTS idx_episodes_last_played ON episodes(last_played_at)"))) {
         logError("create idx_episodes_last_played", query.lastError());
     }
+}
+
+void StorageManager::loadSettings()
+{
+    if (!ensureOpen()) {
+        return;
+    }
+    m_forwardSkipSeconds = readSetting(QString::fromLatin1("forward_skip_seconds"), 30);
+    m_backwardSkipSeconds = readSetting(QString::fromLatin1("backward_skip_seconds"), 15);
+}
+
+void StorageManager::saveSetting(const QString &key, int value)
+{
+    if (!ensureOpen()) {
+        return;
+    }
+    QSqlDatabase db = QSqlDatabase::database(QLatin1String(kConnectionName));
+    QSqlQuery query(db);
+    query.prepare(QLatin1String("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)"));
+    query.addBindValue(key);
+    query.addBindValue(value);
+    if (!query.exec()) {
+        logError("save setting", query.lastError());
+    }
+}
+
+int StorageManager::readSetting(const QString &key, int defaultValue) const
+{
+    if (!ensureOpen()) {
+        return defaultValue;
+    }
+    QSqlDatabase db = QSqlDatabase::database(QLatin1String(kConnectionName));
+    QSqlQuery query(db);
+    query.prepare(QLatin1String("SELECT value FROM settings WHERE key = ?"));
+    query.addBindValue(key);
+    if (!query.exec()) {
+        logError("load setting", query.lastError());
+        return defaultValue;
+    }
+    if (query.next()) {
+        return query.value(0).toInt();
+    }
+    return defaultValue;
 }
 
 void StorageManager::setSubscriptions(const QVariantList &list)

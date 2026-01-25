@@ -17,11 +17,15 @@ Item {
     property int pendingSeekMs: 0
     property bool resumeApplied: false
     property bool pauseAfterSeek: false
+    property int seekTargetMs: -1
+    property bool resumeAfterSeek: false
 
     property int state: audio.state
     property int status: audio.status
     property int position: audio.position
     property int duration: audio.duration
+    property real bufferProgress: audio.bufferProgress
+    property bool seekable: audio.seekable
     property bool available: audio.available
     property string errorString: audio.errorString
     property int stoppedState: audio.stoppedState
@@ -42,6 +46,7 @@ Item {
             return;
         }
         streamUrl = urlString;
+        console.log("Podin playing URL:", streamUrl);
         episodeId = epId ? epId.toString() : "";
         feedId = feed || 0;
         episodeTitle = title || "";
@@ -94,7 +99,9 @@ Item {
         if (!audio.available) {
             return;
         }
-        pendingSeekMs = audio.position;
+        if (!(pendingSeekMs > 0 && !resumeApplied)) {
+            pendingSeekMs = audio.position;
+        }
         resumeApplied = false;
         manualPaused = true;
         isPlaying = false;
@@ -114,7 +121,58 @@ Item {
         if (!audio.available) {
             return;
         }
-        audio.seek(positionMs);
+        var target = positionMs;
+        if (target < 0) {
+            target = 0;
+        }
+        if (audio.duration > 0 && target > audio.duration) {
+            target = audio.duration;
+        }
+        var shouldResume = isPlaying && !manualPaused;
+        if (shouldResume) {
+            audio.pause();
+        }
+        seekTargetMs = target;
+        resumeAfterSeek = shouldResume;
+        audio.seek(target);
+        if (resumeAfterSeek) {
+            seekResumeTimer.restart();
+        }
+        pendingSeekMs = target;
+        resumeApplied = false;
+    }
+
+    function bufferedLimitMs() {
+        if (audio.duration <= 0) {
+            return 0;
+        }
+        var progress = audio.bufferProgress;
+        if (progress <= 0 || progress > 1) {
+            return audio.duration;
+        }
+        var limit = Math.floor(audio.duration * progress);
+        if (limit <= 0) {
+            return 0;
+        }
+        if (limit < audio.position) {
+            return audio.duration;
+        }
+        return limit;
+    }
+
+    function seekBuffered(positionMs) {
+        var target = positionMs;
+        var limit = bufferedLimitMs();
+        if (limit > 0 && target > limit) {
+            target = limit;
+        }
+        seek(target);
+    }
+
+    function skipRelative(seconds) {
+        var deltaSeconds = (seconds === undefined || seconds === null) ? 0 : seconds;
+        var target = position + Math.round(deltaSeconds * 1000);
+        seekBuffered(target);
     }
 
     function saveProgress(playState) {
@@ -138,6 +196,19 @@ Item {
         running: playback.isPlaying
         repeat: true
         onTriggered: playback.saveProgress(1)
+    }
+
+    Timer {
+        id: seekResumeTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (playback.resumeAfterSeek) {
+                audio.play();
+                playback.isPlaying = true;
+                playback.resumeAfterSeek = false;
+            }
+        }
     }
 
     AudioFacade {

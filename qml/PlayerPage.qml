@@ -9,6 +9,7 @@ Page {
     property QtObject playback: null
     property string statusMessage: qsTr("Ready to play.")
     property bool updatingSlider: false
+    property bool userSeeking: false
 
     function isPlaybackActive() {
         if (!playback) {
@@ -115,7 +116,7 @@ Page {
     }
 
     function syncSeekSlider() {
-        if (!playback || page.updatingSlider || seekSlider.pressed) {
+        if (!playback || page.updatingSlider || page.userSeeking) {
             return;
         }
         page.updatingSlider = true;
@@ -123,12 +124,11 @@ Page {
         page.updatingSlider = false;
     }
 
-    function backToEpisodes() {
-        if (pageStack) {
-            pageStack.pop();
-        } else {
-            Qt.quit();
+    function commitSeek() {
+        if (!playback) {
+            return;
         }
+        playback.seekBuffered(seekSlider.value);
     }
 
     Rectangle {
@@ -178,18 +178,53 @@ Page {
                      : false
         }
 
-        Slider {
-            id: seekSlider
+        Column {
+            id: seekArea
             width: parent.width
-            minimumValue: 0
-            maximumValue: playback && playback.duration > 0 ? playback.duration : 1
-            value: 0
-            enabled: playback ? (playback.duration > 0 && playback.available) : false
-            onValueChanged: {
-                if (!playback || page.updatingSlider) {
-                    return;
+            spacing: 6
+
+            Rectangle {
+                id: bufferTrack
+                width: parent.width
+                height: 4
+                radius: 2
+                color: "#243149"
+
+                Rectangle {
+                    id: bufferFill
+                    height: bufferTrack.height
+                    radius: bufferTrack.radius
+                    color: "#4b5f86"
+                    anchors.left: bufferTrack.left
+                    anchors.verticalCenter: bufferTrack.verticalCenter
+                    width: {
+                        if (!playback) {
+                            return 0;
+                        }
+                        var progress = playback.bufferProgress;
+                        if (progress < 0) {
+                            progress = 0;
+                        } else if (progress > 1) {
+                            progress = 1;
+                        }
+                        return Math.round(bufferTrack.width * progress);
+                    }
                 }
-                playback.seek(value);
+            }
+
+            Slider {
+                id: seekSlider
+                width: parent.width
+                minimumValue: 0
+                maximumValue: playback && playback.duration > 0 ? playback.duration : 1
+                value: 0
+                enabled: playback ? (playback.duration > 0 && playback.available && playback.seekable) : false
+                onPressedChanged: {
+                    page.userSeeking = pressed;
+                    if (!pressed) {
+                        page.commitSeek();
+                    }
+                }
             }
         }
 
@@ -228,18 +263,34 @@ Page {
 
             Button {
                 width: (parent.width - 8) / 2
-                text: qsTr("Stop")
+                text: qsTr("Back %1s").arg(storage ? storage.backwardSkipSeconds : 15)
+                enabled: playback ? (playback.available && playback.seekable) : false
                 onClicked: {
                     if (playback) {
-                        playback.stop();
+                        playback.skipRelative(-(storage ? storage.backwardSkipSeconds : 15));
                     }
                 }
             }
 
             Button {
                 width: (parent.width - 8) / 2
-                text: qsTr("Back to list")
-                onClicked: page.backToEpisodes()
+                text: qsTr("Forward %1s").arg(storage ? storage.forwardSkipSeconds : 30)
+                enabled: playback ? (playback.available && playback.seekable) : false
+                onClicked: {
+                    if (playback) {
+                        playback.skipRelative(storage ? storage.forwardSkipSeconds : 30);
+                    }
+                }
+            }
+        }
+
+        Button {
+            width: parent.width
+            text: qsTr("Stop")
+            onClicked: {
+                if (playback) {
+                    playback.stop();
+                }
             }
         }
 
@@ -268,10 +319,9 @@ Page {
 
             Text {
                 width: parent.width
-                text: playback ? ("state=" + playback.state +
-                                  " status=" + playback.status +
-                                  " pos=" + playback.position +
-                                  " dur=" + playback.duration) : "state=N/A"
+                text: playback ? ("pos=" + playback.position +
+                                  " / " + playback.duration +
+                                  " status=" + playback.status) : "player=N/A"
                 color: "#ffffff"
                 font.pixelSize: 11
                 elide: Text.ElideRight
@@ -279,19 +329,11 @@ Page {
 
             Text {
                 width: parent.width
-                text: playback ? ("playing=" + playback.isPlaying +
-                                  " paused=" + playback.manualPaused +
+                text: playback ? ("seekable=" + playback.seekable +
+                                  " buffer=" + playback.bufferProgress.toFixed(2) +
                                   " pendingSeek=" + playback.pendingSeekMs +
-                                  " resumeApplied=" + playback.resumeApplied) : "flags=N/A"
-                color: "#d0d0d0"
-                font.pixelSize: 11
-                elide: Text.ElideRight
-            }
-
-            Text {
-                width: parent.width
-                text: playback ? ("url=" + (playback.streamUrl ? playback.streamUrl.toString() : "")) : "url=N/A"
-                color: "#b0b0b0"
+                                  " • SEEKING DISABLED: HTTP byte-range required") : "seek=N/A"
+                color: "#ffd6d9"
                 font.pixelSize: 10
                 elide: Text.ElideRight
             }

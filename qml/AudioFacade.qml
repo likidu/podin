@@ -13,6 +13,8 @@ Item {
     property int status: unknownStatus
     property int position: 0
     property int duration: 0
+    property real bufferProgress: 0
+    property bool seekable: true
     property string errorString: ""
     property bool available: false
 
@@ -35,6 +37,38 @@ Item {
     property QtObject _impl: null
     property bool _creating: false
 
+    function updateBufferProgress() {
+        if (!_impl) {
+            bufferProgress = 0;
+            return;
+        }
+        if (_impl.bufferProgress !== undefined) {
+            bufferProgress = _impl.bufferProgress;
+            return;
+        }
+        if (_impl.bufferStatus !== undefined) {
+            bufferProgress = _impl.bufferStatus / 100.0;
+            return;
+        }
+        bufferProgress = 0;
+    }
+
+    function updateSeekable() {
+        if (!_impl) {
+            seekable = false;
+            return;
+        }
+        if (_impl.seekable !== undefined) {
+            seekable = _impl.seekable;
+            return;
+        }
+        if (_impl.isSeekable !== undefined) {
+            seekable = _impl.isSeekable;
+            return;
+        }
+        seekable = true;
+    }
+
     function ensureImpl() {
         if (_impl || _creating) {
             return;
@@ -54,6 +88,8 @@ Item {
             _impl.source = root.source;
             _impl.volume = root.volume;
             _impl.muted = root.muted;
+            updateBufferProgress();
+            updateSeekable();
         } catch (e) {
             available = false;
             errorString = "QtMultimediaKit plugin unavailable.";
@@ -117,9 +153,14 @@ Item {
         target: _impl
         ignoreUnknownSignals: true
         onStateChanged: root.state = _impl.state
-        onStatusChanged: root.status = _impl.status
+        onStatusChanged: {
+            root.status = _impl.status;
+            root.updateSeekable();
+        }
         onPositionChanged: root.position = _impl.position
         onDurationChanged: root.duration = _impl.duration
+        onBufferProgressChanged: root.updateBufferProgress()
+        onBufferStatusChanged: root.updateBufferProgress()
         onError: {
             root.errorString = _impl.errorString;
             root.error();
