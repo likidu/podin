@@ -106,6 +106,7 @@ Milestone 5 — Robustness and UX polish (partial)
 Status notes:
 - Done (extra): TLS 1.2 check UI and runtime diagnostics.
 - Pending: caching/offline behavior, image caching, bandwidth controls.
+- Next steps (memory): consider replacing page transitions (Search -> Detail -> Episodes -> Player) to reduce stack retention; consider lowering episode fetch count (e.g., 5–10) on low-RAM devices; add optional RAM/heap logging around episode tap to confirm spikes.
 
 Milestone 6 — Authentication and future "login" hook (partial)
 - Add a settings screen for API key + secret (optional now, required later).
@@ -121,11 +122,12 @@ Status notes:
 Milestone 7 — Packaging and verification (partial)
 - Symbian packaging: .sis build, signing workflow notes.
 - Manual test checklist:
-  - Search, load, play, pause, seek, resume
+  - Search, load, play, pause, resume
   - Offline open subscriptions
-  - Error states (no network, invalid key)
+  - Error states (no network, invalid Podcast Index key)
 - Deliverable: release checklist + build steps.
 - Acceptance: build produced on target device or emulator.
 Status notes:
 - Done: simulator build scripts and README build/run steps.
-- Pending: Symbian .sis packaging notes + checklist.
+- Done: Symbian .sis packaging notes + checklist (docs/SYMBIAN_PACKAGING.md).
+- Pending: device verification on Nokia C7 (Belle FP2).

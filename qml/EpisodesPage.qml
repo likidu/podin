@@ -72,6 +72,7 @@ Page {
         if (!pageStack) {
             return;
         }
+        apiClient.clearEpisodes();
         var epId = episodeId ? episodeId.toString() : "";
         var epTitle = title || "";
         var encType = enclosureType || "";
@@ -99,14 +100,14 @@ Page {
                                            epTitle,
                                            page.podcastTitle,
                                            encType,
-                                           true);
+                                           false);
             }
         }
         var params = {
             tools: page.tools,
             playback: page.playback
         };
-        pageStack.push(Qt.resolvedUrl("PlayerPage.qml"), params);
+        pageStack.replace(Qt.resolvedUrl("PlayerPage.qml"), params, true);
     }
 
     function openNowPlaying() {
@@ -138,6 +139,15 @@ Page {
 
     onFeedIdChanged: {
         if (page.hasLoaded) {
+            requestEpisodesIfReady();
+        }
+    }
+
+    onStatusChanged: {
+        if (status === PageStatus.Inactive) {
+            page.lastRequestedFeedId = 0;
+            apiClient.clearEpisodes();
+        } else if (status === PageStatus.Active && page.hasLoaded) {
             requestEpisodesIfReady();
         }
     }
@@ -174,6 +184,11 @@ Page {
                 color: platformStyle.colorNormalLight
                 elide: Text.ElideRight
                 horizontalAlignment: Text.AlignHCenter
+            }
+
+            MemoryBar {
+                width: parent.width
+                monitor: memoryMonitor
             }
 
             BusyIndicator {

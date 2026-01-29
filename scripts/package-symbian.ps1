@@ -15,6 +15,7 @@ param(
     [string]$CertPath,
     [string]$KeyPath,
     [string]$CertPassword = 'podinpass',
+    [string]$PkgTemplatePath,
     [switch]$Force
 )
 
@@ -28,6 +29,9 @@ function Write-Err([string]$message)  { Write-Host "[ERR ] $message" -Foreground
 try {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
+    if (-not $PkgTemplatePath) {
+        $PkgTemplatePath = Join-Path $repoRoot 'Podin_template.pkg'
+    }
 
     if (-not $SymbianSdkRoot) {
         $SymbianSdkRoot = Join-Path $QtSdkRoot 'Symbian\SDKs\SymbianSR1Qt474'
@@ -76,22 +80,32 @@ try {
     }
 
     $localPkg = Join-Path $localOutDir 'Podin_local.pkg'
-    $pkgTemplatePath = Join-Path $repoRoot 'Podin_template.pkg'
-    if (-not (Test-Path -LiteralPath $pkgTemplatePath)) {
-        throw ("Package template not found at {0}" -f $pkgTemplatePath)
+    if (-not (Test-Path -LiteralPath $PkgTemplatePath)) {
+        throw ("Package template not found at {0}" -f $PkgTemplatePath)
     }
 
-    $pkgContent = Get-Content -Raw -LiteralPath $pkgTemplatePath
+    $requiredInputs = @(
+        (Join-Path $localOutDir 'Podin.exe'),
+        (Join-Path $localOutDir 'Podin.rsc'),
+        (Join-Path $localOutDir 'Podin_reg.rsc')
+    )
+    $missingInputs = $requiredInputs | Where-Object { -not (Test-Path -LiteralPath $_) }
+    if ($missingInputs) {
+        throw ("Missing packaging inputs: {0}" -f ([string]::Join(', ', $missingInputs)))
+    }
+
+    $pkgContent = Get-Content -Raw -LiteralPath $PkgTemplatePath
     $pkgContent = $pkgContent.Replace('$(PLATFORM)', $Arch).Replace('$(TARGET)', $variantDir)
 
     $sdkForward = ($SymbianSdkRoot -replace '\\','/').TrimEnd('/')
     $localForward = ($localOutDir -replace '\\','/').TrimEnd('/')
+    $pkgContent = $pkgContent.Replace('$(SDKROOT)', $sdkForward)
 
     $pkgContent = $pkgContent.Replace("$sdkForward/epoc32/release/$Arch/$variantDir/Podin.exe", "$localForward/Podin.exe")
     $pkgContent = $pkgContent.Replace("$sdkForward/epoc32/data/z/resource/apps/Podin.rsc", "$localForward/Podin.rsc")
     $pkgContent = $pkgContent.Replace("$sdkForward/epoc32/data/z/private/10003a3f/import/apps/Podin_reg.rsc", "$localForward/Podin_reg.rsc")
 
-    Set-Content -LiteralPath $localPkg -Value $pkgContent -Encoding UTF8
+    Set-Content -LiteralPath $localPkg -Value $pkgContent -Encoding ASCII
 
     $makesis = Join-Path $SymbianSdkRoot 'epoc32\tools\makesis.exe'
     if (-not (Test-Path -LiteralPath $makesis)) {

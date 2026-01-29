@@ -47,6 +47,11 @@ Page {
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignHCenter
         }
+
+        MemoryBar {
+            width: parent.width
+            monitor: memoryMonitor
+        }
     }
 
     ListView {
@@ -88,9 +93,14 @@ Page {
                         Image {
                             anchors.fill: parent
                             anchors.margins: 2
-                            source: modelData.image
+                            source: storage && storage.enableArtworkLoading ? modelData.image : ""
                             fillMode: Image.PreserveAspectFit
                             smooth: true
+                            asynchronous: true
+                            cache: false
+                            sourceSize.width: 44
+                            sourceSize.height: 44
+                            visible: storage && storage.enableArtworkLoading && modelData.image && modelData.image.length > 0
                         }
                     }
 

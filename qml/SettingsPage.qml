@@ -39,6 +39,11 @@ Page {
                 horizontalAlignment: Text.AlignHCenter
             }
 
+            MemoryBar {
+                width: parent.width
+                monitor: memoryMonitor
+            }
+
             Column {
                 width: parent.width
                 spacing: 10
@@ -105,6 +110,58 @@ Page {
                             }
                             storage.backwardSkipSeconds = Math.round(value);
                         }
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 10
+
+                Text {
+                    width: parent.width
+                    text: qsTr("Artwork")
+                    font.pixelSize: 18
+                    color: platformStyle.colorNormalLight
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: "#3a4a6a"
+                }
+
+                Column {
+                    width: parent.width
+                    spacing: 6
+
+                    Text {
+                        width: parent.width
+                        text: qsTr("Enable artwork loading in lists")
+                        font.pixelSize: 14
+                        color: "#b7c4e0"
+                        wrapMode: Text.WordWrap
+                    }
+
+                    Button {
+                        width: parent.width
+                        text: storage && storage.enableArtworkLoading
+                              ? qsTr("Artwork loading: On")
+                              : qsTr("Artwork loading: Off")
+                        onClicked: {
+                            if (!storage) {
+                                return;
+                            }
+                            storage.enableArtworkLoading = !storage.enableArtworkLoading;
+                        }
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: qsTr("Turn off to save memory. List thumbnails will show placeholders only.")
+                        font.pixelSize: 12
+                        color: "#9fb0d3"
+                        wrapMode: Text.WordWrap
                     }
                 }
             }

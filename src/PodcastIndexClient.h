@@ -28,9 +28,14 @@ public:
     QVariantMap podcastDetail() const;
 
     Q_INVOKABLE void search(const QString &term);
+    Q_INVOKABLE void searchMore(const QString &term, int maxResults);
     Q_INVOKABLE void fetchPodcast(int feedId);
     Q_INVOKABLE void fetchPodcastByGuid(const QString &guid);
     Q_INVOKABLE void fetchEpisodes(int feedId);
+    Q_INVOKABLE void clearPodcasts();
+    Q_INVOKABLE void clearEpisodes();
+    Q_INVOKABLE void clearPodcastDetail();
+    Q_INVOKABLE void clearAll();
 
 signals:
     void busyChanged();
@@ -52,7 +57,8 @@ private:
         EpisodesRequest
     };
 
-    void startRequest(RequestType type, const QUrl &url);
+    void startRequest(RequestType type, const QUrl &url, bool appendResults);
+    void startSearchRequest(const QString &term, int maxResults, bool appendResults);
     void abortActiveRequest();
     void setBusy(bool busy);
     void setErrorMessage(const QString &message);

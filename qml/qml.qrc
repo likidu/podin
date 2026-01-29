@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/qml">
         <file>SearchPage.qml</file>
+        <file>MemoryBar.qml</file>
         <file>EpisodesPage.qml</file>
         <file>PodcastDetailPage.qml</file>
         <file>PlayerPage.qml</file>

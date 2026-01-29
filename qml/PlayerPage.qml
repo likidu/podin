@@ -102,6 +102,11 @@ Page {
         if (!playback) {
             return;
         }
+        var detailNote = note;
+        if ((!detailNote || detailNote.length === 0) &&
+            playback.errorString && playback.errorString.length > 0) {
+            detailNote = playback.errorString;
+        }
         var stateText = isPlaybackActive() ? qsTr("Playing")
                         : (playback.manualPaused || playback.state === playback.pausedState) ? qsTr("Paused")
                         : qsTr("Stopped");
@@ -109,8 +114,8 @@ Page {
         var position = formatDuration(playback.position / 1000);
         var duration = formatDuration(playback.duration / 1000);
         var base = stateText + " • " + statusText + "\n" + position + " / " + duration;
-        if (note && note.length > 0) {
-            base = note + "\n" + base;
+        if (detailNote && detailNote.length > 0) {
+            base = detailNote + "\n" + base;
         }
         page.statusMessage = base;
     }
@@ -139,205 +144,335 @@ Page {
         }
     }
 
-    Column {
-        id: content
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
+    Flickable {
+        id: mainFlickable
+        anchors.fill: parent
         anchors.margins: 16
-        spacing: 10
-
-        Text {
-            width: parent.width
-            text: playback && playback.episodeTitle.length > 0 ? playback.episodeTitle : qsTr("Player")
-            color: platformStyle.colorNormalLight
-            font.pixelSize: 20
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight
-        }
-
-        Text {
-            width: parent.width
-            text: playback && playback.podcastTitle.length > 0 ? playback.podcastTitle : ""
-            color: "#b7c4e0"
-            font.pixelSize: 14
-            horizontalAlignment: Text.AlignHCenter
-            visible: playback ? (playback.podcastTitle.length > 0) : false
-        }
-
-        Text {
-            width: parent.width
-            text: playback && playback.streamUrl && playback.streamUrl.toString().length > 0
-                  ? qsTr("Source: %1").arg(mediaLabelFor(playback.streamUrl, playback.enclosureType))
-                  : ""
-            color: "#93a3c4"
-            font.pixelSize: 12
-            horizontalAlignment: Text.AlignHCenter
-            visible: playback
-                     ? (playback.streamUrl && playback.streamUrl.toString().length > 0 ? true : false)
-                     : false
-        }
+        contentWidth: width
+        contentHeight: mainColumn.height
+        clip: true
+        flickableDirection: Flickable.VerticalFlick
 
         Column {
-            id: seekArea
+            id: mainColumn
             width: parent.width
-            spacing: 6
+            spacing: 10
 
-            Rectangle {
-                id: bufferTrack
+            Text {
                 width: parent.width
-                height: 4
-                radius: 2
-                color: "#243149"
+                text: playback && playback.episodeTitle.length > 0 ? playback.episodeTitle : qsTr("Player")
+                color: platformStyle.colorNormalLight
+                font.pixelSize: 20
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+            }
+
+            MemoryBar {
+                width: parent.width
+                monitor: memoryMonitor
+            }
+
+            Text {
+                width: parent.width
+                text: playback && playback.podcastTitle.length > 0 ? playback.podcastTitle : ""
+                color: "#b7c4e0"
+                font.pixelSize: 14
+                horizontalAlignment: Text.AlignHCenter
+                visible: playback ? (playback.podcastTitle.length > 0) : false
+            }
+
+            Text {
+                width: parent.width
+                text: playback && playback.streamUrl && playback.streamUrl.toString().length > 0
+                      ? qsTr("Source: %1").arg(mediaLabelFor(playback.streamUrl, playback.enclosureType))
+                      : ""
+                color: "#93a3c4"
+                font.pixelSize: 12
+                horizontalAlignment: Text.AlignHCenter
+                visible: playback
+                         ? (playback.streamUrl && playback.streamUrl.toString().length > 0 ? true : false)
+                         : false
+            }
+
+            Column {
+                id: seekArea
+                width: parent.width
+                spacing: 6
 
                 Rectangle {
-                    id: bufferFill
-                    height: bufferTrack.height
-                    radius: bufferTrack.radius
-                    color: "#4b5f86"
-                    anchors.left: bufferTrack.left
-                    anchors.verticalCenter: bufferTrack.verticalCenter
-                    width: {
-                        if (!playback) {
-                            return 0;
+                    id: bufferTrack
+                    width: parent.width
+                    height: 4
+                    radius: 2
+                    color: "#243149"
+
+                    Rectangle {
+                        id: bufferFill
+                        height: bufferTrack.height
+                        radius: bufferTrack.radius
+                        color: "#4b5f86"
+                        anchors.left: bufferTrack.left
+                        anchors.verticalCenter: bufferTrack.verticalCenter
+                        width: {
+                            if (!playback) {
+                                return 0;
+                            }
+                            var progress = playback.bufferProgress;
+                            if (progress < 0) {
+                                progress = 0;
+                            } else if (progress > 1) {
+                                progress = 1;
+                            }
+                            return Math.round(bufferTrack.width * progress);
                         }
-                        var progress = playback.bufferProgress;
-                        if (progress < 0) {
-                            progress = 0;
-                        } else if (progress > 1) {
-                            progress = 1;
+                    }
+                }
+
+                Slider {
+                    id: seekSlider
+                    width: parent.width
+                    minimumValue: 0
+                    maximumValue: playback && playback.duration > 0 ? playback.duration : 1
+                    value: 0
+                    enabled: playback ? (playback.duration > 0 && playback.available && playback.seekable) : false
+                    onPressedChanged: {
+                        page.userSeeking = pressed;
+                        if (!pressed) {
+                            page.commitSeek();
                         }
-                        return Math.round(bufferTrack.width * progress);
                     }
                 }
             }
 
-            Slider {
-                id: seekSlider
+            Text {
                 width: parent.width
-                minimumValue: 0
-                maximumValue: playback && playback.duration > 0 ? playback.duration : 1
-                value: 0
-                enabled: playback ? (playback.duration > 0 && playback.available && playback.seekable) : false
-                onPressedChanged: {
-                    page.userSeeking = pressed;
-                    if (!pressed) {
-                        page.commitSeek();
+                property bool resolving: streamUrlResolver ? streamUrlResolver.resolving : false
+                text: resolving ? qsTr("Resolving stream URL...") : qsTr("Buffering...")
+                color: resolving ? "#ffffaa" : "#ffd6d9"
+                font.pixelSize: 12
+                horizontalAlignment: Text.AlignHCenter
+                visible: resolving || (playback
+                         ? (isPlaybackActive() &&
+                            (playback.status === playback.bufferingStatus ||
+                             playback.status === playback.loadingStatus ||
+                             playback.status === playback.stalledStatus))
+                         : false)
+            }
+
+            Button {
+                width: parent.width
+                text: isPlaybackActive() ? qsTr("Pause") : qsTr("Play")
+                onClicked: {
+                    if (!playback) {
+                        return;
+                    }
+                    if (isPlaybackActive()) {
+                        playback.pause();
+                    } else {
+                        playback.play();
                     }
                 }
             }
-        }
 
-        Text {
-            width: parent.width
-            text: qsTr("Buffering...")
-            color: "#ffd6d9"
-            font.pixelSize: 12
-            horizontalAlignment: Text.AlignHCenter
-            visible: playback
-                     ? (isPlaybackActive() &&
-                        (playback.status === playback.bufferingStatus ||
-                         playback.status === playback.loadingStatus ||
-                         playback.status === playback.stalledStatus))
-                     : false
-        }
+            Row {
+                width: parent.width
+                spacing: 8
 
-        Button {
-            width: parent.width
-            text: isPlaybackActive() ? qsTr("Pause") : qsTr("Play")
-            onClicked: {
-                if (!playback) {
-                    return;
+                Button {
+                    width: (parent.width - 8) / 2
+                    text: qsTr("Back %1s").arg(storage ? storage.backwardSkipSeconds : 15)
+                    enabled: playback ? (playback.available && playback.seekable) : false
+                    onClicked: {
+                        if (playback) {
+                            playback.skipRelative(-(storage ? storage.backwardSkipSeconds : 15));
+                        }
+                    }
                 }
-                if (isPlaybackActive()) {
-                    playback.pause();
-                } else {
-                    playback.play();
-                }
-            }
-        }
 
-        Row {
-            width: parent.width
-            spacing: 8
-
-            Button {
-                width: (parent.width - 8) / 2
-                text: qsTr("Back %1s").arg(storage ? storage.backwardSkipSeconds : 15)
-                enabled: playback ? (playback.available && playback.seekable) : false
-                onClicked: {
-                    if (playback) {
-                        playback.skipRelative(-(storage ? storage.backwardSkipSeconds : 15));
+                Button {
+                    width: (parent.width - 8) / 2
+                    text: qsTr("Forward %1s").arg(storage ? storage.forwardSkipSeconds : 30)
+                    enabled: playback ? (playback.available && playback.seekable) : false
+                    onClicked: {
+                        if (playback) {
+                            playback.skipRelative(storage ? storage.forwardSkipSeconds : 30);
+                        }
                     }
                 }
             }
 
             Button {
-                width: (parent.width - 8) / 2
-                text: qsTr("Forward %1s").arg(storage ? storage.forwardSkipSeconds : 30)
-                enabled: playback ? (playback.available && playback.seekable) : false
+                width: parent.width
+                text: qsTr("Stop")
                 onClicked: {
                     if (playback) {
-                        playback.skipRelative(storage ? storage.forwardSkipSeconds : 30);
+                        playback.stop();
                     }
                 }
             }
-        }
 
-        Button {
-            width: parent.width
-            text: qsTr("Stop")
-            onClicked: {
-                if (playback) {
-                    playback.stop();
-                }
+            Text {
+                width: parent.width
+                text: page.statusMessage
+                color: "#b7c4e0"
+                font.pixelSize: 14
+                wrapMode: Text.WordWrap
             }
-        }
 
-        Text {
-            width: parent.width
-            text: page.statusMessage
-            color: "#b7c4e0"
-            font.pixelSize: 14
-            wrapMode: Text.WordWrap
-        }
-    }
+            // Debug section header
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#4b5f86"
+            }
 
-    Rectangle {
-        id: debugOverlay
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        height: 90
-        color: "#00000088"
-        visible: true
+            Text {
+                width: parent.width
+                text: "Debug Info"
+                color: "#8899bb"
+                font.pixelSize: 14
+                font.bold: true
+            }
 
-        Column {
-            anchors.fill: parent
-            anchors.margins: 8
-            spacing: 2
-
+            // Debug info - all inline in the scrollable column
             Text {
                 width: parent.width
                 text: playback ? ("pos=" + playback.position +
                                   " / " + playback.duration +
-                                  " status=" + playback.status) : "player=N/A"
+                                  " status=" + playback.status + " (" + backendStatusName(playback.status) + ")" +
+                                  " state=" + playback.state) : "player=N/A"
                 color: "#ffffff"
-                font.pixelSize: 11
-                elide: Text.ElideRight
+                font.pixelSize: 14
+                wrapMode: Text.WrapAnywhere
             }
 
             Text {
                 width: parent.width
                 text: playback ? ("seekable=" + playback.seekable +
                                   " buffer=" + playback.bufferProgress.toFixed(2) +
-                                  " pendingSeek=" + playback.pendingSeekMs +
-                                  " • SEEKING DISABLED: HTTP byte-range required") : "seek=N/A"
+                                  " available=" + playback.available +
+                                  " tried=" + playback.triedUrls.length) : "seek=N/A"
                 color: "#ffd6d9"
-                font.pixelSize: 10
-                elide: Text.ElideRight
+                font.pixelSize: 14
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                property bool resolving: streamUrlResolver ? streamUrlResolver.resolving : false
+                property string resolverError: streamUrlResolver ? streamUrlResolver.errorString : ""
+                text: resolving ? "RESOLVER: Resolving redirects..."
+                      : (resolverError.length > 0 ? ("RESOLVER ERROR: " + resolverError)
+                      : "RESOLVER: Idle")
+                color: resolving ? "#ffff00" : (resolverError.length > 0 ? "#ff8888" : "#88ff88")
+                font.pixelSize: 14
+                font.bold: resolving
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                property string urlStr: playback && playback.originalUrl ? playback.originalUrl.toString() : ""
+                text: urlStr.length > 0 ? ("ORIGINAL: " + urlStr) : "ORIGINAL: (none)"
+                color: "#ffcc88"
+                font.pixelSize: 13
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                property string urlStr: playback && playback.streamUrl ? playback.streamUrl.toString() : ""
+                property string origUrlStr: playback && playback.originalUrl ? playback.originalUrl.toString() : ""
+                property string proto: urlStr.indexOf("https://") === 0 ? "HTTPS" : (urlStr.indexOf("http://") === 0 ? "HTTP" : "OTHER")
+                property bool isResolved: urlStr.length > 0 && origUrlStr.length > 0 && origUrlStr !== urlStr
+                text: urlStr.length > 0 ? ((isResolved ? "RESOLVED [" : "[") + proto + "] " + urlStr) : "PLAYING: (none)"
+                color: isResolved ? "#88ffcc" : "#aaccff"
+                font.pixelSize: 13
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                text: playback && playback.enclosureType ? ("Type: " + playback.enclosureType) : "Type: (unknown)"
+                color: "#aaccff"
+                font.pixelSize: 13
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                text: playback && playback.errorString && playback.errorString.length > 0
+                      ? ("Error: " + playback.errorString)
+                      : "Error: (none)"
+                color: playback && playback.errorString && playback.errorString.length > 0 ? "#ff8888" : "#88ff88"
+                font.pixelSize: 14
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                text: playback ? ("epId=" + (playback.episodeId ? playback.episodeId : "none") +
+                                  " feedId=" + playback.feedId) : "episode=N/A"
+                color: "#cccccc"
+                font.pixelSize: 13
+                wrapMode: Text.WrapAnywhere
+            }
+
+            // Memory info
+            Text {
+                width: parent.width
+                text: memoryMonitor ? ("Memory: " + Math.round(memoryMonitor.freeBytes / 1024 / 1024) + "MB free / " +
+                                       Math.round(memoryMonitor.totalBytes / 1024 / 1024) + "MB total (" +
+                                       memoryMonitor.usedPercent + "% used)" +
+                                       (memoryMonitor.isMemoryCritical ? " - CRITICAL!" : (memoryMonitor.isMemoryLow ? " - LOW" : "")))
+                      : "Memory: N/A"
+                color: memoryMonitor && memoryMonitor.isMemoryCritical ? "#ff4444" : (memoryMonitor && memoryMonitor.isMemoryLow ? "#ffaa44" : "#88ff88")
+                font.pixelSize: 14
+                font.bold: memoryMonitor && (memoryMonitor.isMemoryLow || memoryMonitor.isMemoryCritical)
+                wrapMode: Text.WrapAnywhere
+            }
+
+            // Add some padding at the bottom
+            Item {
+                width: parent.width
+                height: 20
             }
         }
+    }
+
+    function logDebugInfo() {
+        if (!playback) {
+            console.log("[DEBUG] player=N/A");
+            return;
+        }
+        console.log("[DEBUG] pos=" + playback.position +
+                    " / " + playback.duration +
+                    " status=" + playback.status + " (" + backendStatusName(playback.status) + ")" +
+                    " state=" + playback.state);
+        console.log("[DEBUG] seekable=" + playback.seekable +
+                    " buffer=" + playback.bufferProgress.toFixed(2) +
+                    " available=" + playback.available +
+                    " tried=" + playback.triedUrls.length);
+
+        var resolving = streamUrlResolver ? streamUrlResolver.resolving : false;
+        var resolverError = streamUrlResolver ? streamUrlResolver.errorString : "";
+        console.log("[DEBUG] RESOLVER: " + (resolving ? "Resolving..." : (resolverError.length > 0 ? "ERROR: " + resolverError : "Idle")));
+
+        var origUrl = playback.originalUrl ? playback.originalUrl.toString() : "";
+        console.log("[DEBUG] ORIGINAL: " + (origUrl.length > 0 ? origUrl : "(none)"));
+
+        var streamUrl = playback.streamUrl ? playback.streamUrl.toString() : "";
+        var isResolved = origUrl.length > 0 && streamUrl.length > 0 && origUrl !== streamUrl;
+        console.log("[DEBUG] " + (isResolved ? "RESOLVED: " : "PLAYING: ") + (streamUrl.length > 0 ? streamUrl : "(none)"));
+
+        if (playback.enclosureType) {
+            console.log("[DEBUG] Type: " + playback.enclosureType);
+        }
+        if (playback.errorString && playback.errorString.length > 0) {
+            console.log("[DEBUG] Error: " + playback.errorString);
+        }
+        console.log("[DEBUG] epId=" + (playback.episodeId ? playback.episodeId : "none") +
+                    " feedId=" + playback.feedId);
     }
 
     Connections {
@@ -346,9 +481,29 @@ Page {
             page.syncSeekSlider();
             page.updateStatus("");
         }
-        onDurationChanged: page.syncSeekSlider()
-        onStateChanged: page.updateStatus("")
-        onStatusChanged: page.updateStatus("")
+        onDurationChanged: {
+            page.syncSeekSlider();
+            page.logDebugInfo();
+        }
+        onStateChanged: {
+            page.updateStatus("");
+            page.logDebugInfo();
+        }
+        onStatusChanged: {
+            page.updateStatus("");
+            page.logDebugInfo();
+        }
+        onErrorStringChanged: {
+            page.updateStatus("");
+            page.logDebugInfo();
+        }
+    }
+
+    Connections {
+        target: streamUrlResolver ? streamUrlResolver : null
+        ignoreUnknownSignals: true
+        onResolvingChanged: page.logDebugInfo()
+        onErrorStringChanged: page.logDebugInfo()
     }
 
     Component.onCompleted: {

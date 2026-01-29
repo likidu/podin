@@ -17,8 +17,11 @@ Page {
     property int lastRequestedFeedId: 0
     property string lastRequestedGuid: ""
     property bool subscribed: false
+    property string cachedArtworkPath: ""
 
-    property bool hasArtwork: podcastImage && podcastImage.toString().length > 0
+    property bool hasArtwork: storage && storage.enableArtworkLoading &&
+                              cachedArtworkPath && cachedArtworkPath.length > 0
+    property string storageError: ""
 
     function requestPodcastIfReady() {
         if (page.feedId > 0) {
@@ -59,6 +62,26 @@ Page {
         page.podcastImage = detail.image ? detail.image : page.podcastImage;
         page.podcastAuthor = detail.author ? detail.author : page.podcastAuthor;
         page.podcastUrl = detail.url ? detail.url : page.podcastUrl;
+        page.resolveArtwork();
+    }
+
+    function resolveArtwork() {
+        if (!storage || !storage.enableArtworkLoading) {
+            page.cachedArtworkPath = "";
+            return;
+        }
+        if (!artworkCache || page.feedId <= 0) {
+            return;
+        }
+        var cached = artworkCache.cachedArtworkPath(page.feedId, page.podcastTitle);
+        if (cached && cached.length > 0) {
+            page.cachedArtworkPath = cached;
+            return;
+        }
+        page.cachedArtworkPath = "";
+        if (page.podcastImage && page.podcastImage.toString().length > 0) {
+            artworkCache.requestArtwork(page.feedId, page.podcastTitle, page.podcastImage.toString());
+        }
     }
 
     function refreshSubscriptionState() {
@@ -109,6 +132,11 @@ Page {
                 elide: Text.ElideRight
             }
 
+            MemoryBar {
+                width: parent.width
+                monitor: memoryMonitor
+            }
+
             Rectangle {
                 width: 140
                 height: 140
@@ -121,10 +149,14 @@ Page {
                 Image {
                     anchors.fill: parent
                     anchors.margins: 6
-                    source: page.podcastImage
+                    source: page.cachedArtworkPath.length > 0 ? page.cachedArtworkPath : ""
                     fillMode: Image.PreserveAspectFit
                     smooth: true
+                    asynchronous: true
+                    cache: false
                     visible: page.hasArtwork
+                    sourceSize.width: 128
+                    sourceSize.height: 128
                 }
 
                 Text {
@@ -189,6 +221,15 @@ Page {
                 wrapMode: Text.WordWrap
             }
 
+            Text {
+                width: parent.width
+                text: page.storageError
+                visible: page.storageError.length > 0
+                color: "#ffd6d9"
+                font.pixelSize: 14
+                wrapMode: Text.WordWrap
+            }
+
             Button {
                 width: parent.width
                 text: qsTr("View Episodes")
@@ -202,13 +243,16 @@ Page {
                 enabled: page.feedId > 0
                 onClicked: {
                     if (!storage || page.feedId <= 0) {
+                        page.storageError = "Storage not available or invalid feed ID";
                         return;
                     }
+                    page.storageError = "";
                     if (page.subscribed) {
                         storage.unsubscribe(page.feedId);
                     } else {
                         storage.subscribe(page.feedId, page.podcastTitle, page.podcastImage.toString());
                     }
+                    page.storageError = storage.lastError ? storage.lastError : "";
                     page.refreshSubscriptionState();
                 }
             }
@@ -220,6 +264,7 @@ Page {
         requestPodcastIfReady();
         applyPodcastDetail(apiClient.podcastDetail);
         refreshSubscriptionState();
+        page.resolveArtwork();
     }
 
     onFeedIdChanged: {
@@ -227,11 +272,34 @@ Page {
             requestPodcastIfReady();
         }
         refreshSubscriptionState();
+        page.resolveArtwork();
     }
 
     onPodcastGuidChanged: {
         if (page.hasLoaded) {
             requestPodcastIfReady();
+        }
+    }
+
+    onPodcastImageChanged: {
+        if (page.hasLoaded) {
+            page.resolveArtwork();
+        }
+    }
+
+    onStatusChanged: {
+        if (status === PageStatus.Inactive) {
+            page.podcastTitle = "";
+            page.podcastDescription = "";
+            page.podcastImage = "";
+            page.podcastAuthor = "";
+            page.podcastUrl = "";
+            page.cachedArtworkPath = "";
+            apiClient.clearPodcastDetail();
+        } else if (status === PageStatus.Active && page.hasLoaded) {
+            requestPodcastIfReady();
+            refreshSubscriptionState();
+            page.resolveArtwork();
         }
     }
 
@@ -246,5 +314,24 @@ Page {
     Connections {
         target: storage
         onSubscriptionsChanged: page.refreshSubscriptionState()
+    }
+
+    Connections {
+        target: artworkCache
+        onArtworkCached: {
+            if (feedId === page.feedId) {
+                page.cachedArtworkPath = path;
+            }
+        }
+    }
+
+    Connections {
+        target: storage
+        onEnableArtworkLoadingChanged: {
+            page.resolveArtwork();
+        }
+        onLastErrorChanged: {
+            page.storageError = storage.lastError ? storage.lastError : "";
+        }
     }
 }

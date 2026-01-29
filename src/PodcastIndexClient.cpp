@@ -16,6 +16,19 @@
 #include "parser.h"
 
 namespace {
+QString trimText(const QString &text, int maxChars)
+{
+    if (maxChars <= 0 || text.isEmpty()) {
+        return QString();
+    }
+    if (text.size() <= maxChars) {
+        return text;
+    }
+    QString trimmed = text.left(maxChars);
+    trimmed.append(QString::fromLatin1("..."));
+    return trimmed;
+}
+
 QString pickString(const QVariantMap &map, const char *primary, const char *fallback = 0)
 {
     QString value = map.value(QLatin1String(primary)).toString();
@@ -32,6 +45,42 @@ QVariant pickValue(const QVariantMap &map, const char *primary, const char *fall
         value = map.value(QLatin1String(fallback));
     }
     return value;
+}
+
+QString extractErrorDetail(const QByteArray &payload)
+{
+    if (payload.isEmpty()) {
+        return QString();
+    }
+
+    QJson::Parser parser;
+    bool ok = false;
+    const QVariant parsed = parser.parse(payload, &ok);
+    if (ok) {
+        const QVariantMap map = parsed.toMap();
+        if (!map.isEmpty()) {
+            QString detail = pickString(map, "description", "message");
+            if (detail.isEmpty()) {
+                detail = pickString(map, "error");
+            }
+            if (detail.isEmpty()) {
+                detail = pickString(map, "status");
+            }
+            if (!detail.isEmpty()) {
+                return detail;
+            }
+        }
+    }
+
+    QString text = QString::fromUtf8(payload).trimmed();
+    if (text.isEmpty()) {
+        return QString();
+    }
+    const int kMax = 240;
+    if (text.size() > kMax) {
+        text = text.left(kMax) + QString::fromLatin1("...");
+    }
+    return text;
 }
 }
 
@@ -74,6 +123,16 @@ QVariantMap PodcastIndexClient::podcastDetail() const
 
 void PodcastIndexClient::search(const QString &term)
 {
+    startSearchRequest(term, 10, false);
+}
+
+void PodcastIndexClient::searchMore(const QString &term, int maxResults)
+{
+    startSearchRequest(term, maxResults, true);
+}
+
+void PodcastIndexClient::startSearchRequest(const QString &term, int maxResults, bool appendResults)
+{
     const QString trimmed = term.trimmed();
     if (trimmed.isEmpty()) {
         setErrorMessage(QString::fromLatin1("Enter a search term."));
@@ -85,11 +144,18 @@ void PodcastIndexClient::search(const QString &term)
         return;
     }
 
+    int safeMax = maxResults;
+    if (safeMax < 1) {
+        safeMax = 1;
+    } else if (safeMax > 1000) {
+        safeMax = 1000;
+    }
+
     QUrl url = PodcastIndexConfig::buildUrl(QString::fromLatin1("search/byterm"));
     url.addQueryItem(QString::fromLatin1("q"), trimmed);
-    url.addQueryItem(QString::fromLatin1("max"), QString::fromLatin1("10"));
+    url.addQueryItem(QString::fromLatin1("max"), QString::number(safeMax));
 
-    startRequest(SearchRequest, url);
+    startRequest(SearchRequest, url, appendResults);
 }
 
 void PodcastIndexClient::fetchPodcast(int feedId)
@@ -107,7 +173,7 @@ void PodcastIndexClient::fetchPodcast(int feedId)
     QUrl url = PodcastIndexConfig::buildUrl(QString::fromLatin1("podcasts/byfeedid"));
     url.addQueryItem(QString::fromLatin1("id"), QString::number(feedId));
 
-    startRequest(PodcastRequest, url);
+    startRequest(PodcastRequest, url, false);
 }
 
 void PodcastIndexClient::fetchPodcastByGuid(const QString &guid)
@@ -126,7 +192,7 @@ void PodcastIndexClient::fetchPodcastByGuid(const QString &guid)
     QUrl url = PodcastIndexConfig::buildUrl(QString::fromLatin1("podcasts/byguid"));
     url.addQueryItem(QString::fromLatin1("guid"), trimmed);
 
-    startRequest(PodcastRequest, url);
+    startRequest(PodcastRequest, url, false);
 }
 
 void PodcastIndexClient::fetchEpisodes(int feedId)
@@ -145,10 +211,40 @@ void PodcastIndexClient::fetchEpisodes(int feedId)
     url.addQueryItem(QString::fromLatin1("id"), QString::number(feedId));
     url.addQueryItem(QString::fromLatin1("max"), QString::fromLatin1("10"));
 
-    startRequest(EpisodesRequest, url);
+    startRequest(EpisodesRequest, url, false);
 }
 
-void PodcastIndexClient::startRequest(RequestType type, const QUrl &url)
+void PodcastIndexClient::clearPodcasts()
+{
+    if (!m_podcasts.isEmpty()) {
+        setPodcasts(QVariantList());
+    }
+}
+
+void PodcastIndexClient::clearEpisodes()
+{
+    if (!m_episodes.isEmpty()) {
+        setEpisodes(QVariantList());
+    }
+}
+
+void PodcastIndexClient::clearPodcastDetail()
+{
+    if (!m_podcastDetail.isEmpty()) {
+        setPodcastDetail(QVariantMap());
+    }
+}
+
+void PodcastIndexClient::clearAll()
+{
+    clearPodcasts();
+    clearEpisodes();
+    clearPodcastDetail();
+    setErrorMessage(QString());
+    setBusy(false);
+}
+
+void PodcastIndexClient::startRequest(RequestType type, const QUrl &url, bool appendResults)
 {
     abortActiveRequest();
     setErrorMessage(QString());
@@ -161,7 +257,9 @@ void PodcastIndexClient::startRequest(RequestType type, const QUrl &url)
         return;
     }
     if (type == SearchRequest) {
-        setPodcasts(QVariantList());
+        if (!appendResults) {
+            setPodcasts(QVariantList());
+        }
     } else if (type == PodcastRequest) {
         setPodcastDetail(QVariantMap());
     } else if (type == EpisodesRequest) {
@@ -265,8 +363,8 @@ QVariantList PodcastIndexClient::parseFeedList(const QVariant &root) const
         const int feedId = pickValue(feed, "id", "feedId").toInt();
         const QString guid = pickString(feed, "podcastGuid", "guid");
         const QString title = pickString(feed, "title");
-        const QString image = pickString(feed, "image", "artwork");
-        const QString description = pickString(feed, "description");
+        const QString image = pickString(feed, "image");
+        const QString description = trimText(pickString(feed, "description"), 240);
 
         QVariantMap entry;
         entry.insert(QString::fromLatin1("feedId"), feedId);
@@ -292,22 +390,18 @@ QVariantList PodcastIndexClient::parseEpisodeList(const QVariant &root) const
         const QVariantMap item = items.at(i).toMap();
         const QVariant idValue = pickValue(item, "id", "guid");
         const QString title = pickString(item, "title");
-        const QString description = pickString(item, "description");
         const QVariant dateValue = pickValue(item, "datePublished");
         const QVariant durationValue = pickValue(item, "duration");
         const QString enclosureUrl = pickString(item, "enclosureUrl");
         const QString enclosureType = pickString(item, "enclosureType");
-        const QString image = pickString(item, "image", "feedImage");
 
         QVariantMap entry;
         entry.insert(QString::fromLatin1("id"), idValue);
         entry.insert(QString::fromLatin1("title"), title);
-        entry.insert(QString::fromLatin1("description"), description);
         entry.insert(QString::fromLatin1("datePublished"), dateValue);
         entry.insert(QString::fromLatin1("duration"), durationValue);
         entry.insert(QString::fromLatin1("enclosureUrl"), enclosureUrl);
         entry.insert(QString::fromLatin1("enclosureType"), enclosureType);
-        entry.insert(QString::fromLatin1("image"), image);
         results.append(entry);
     }
 
@@ -326,8 +420,8 @@ QVariantMap PodcastIndexClient::parsePodcastDetail(const QVariant &root) const
     const int feedId = pickValue(feed, "id", "feedId").toInt();
     const QString guid = pickString(feed, "podcastGuid", "guid");
     const QString title = pickString(feed, "title");
-    const QString description = pickString(feed, "description");
-    const QString image = pickString(feed, "image", "artwork");
+    const QString description = trimText(pickString(feed, "description"), 1200);
+    const QString image = pickString(feed, "image");
     const QString author = pickString(feed, "author", "ownerName");
     const QString url = pickString(feed, "url", "link");
 
@@ -368,17 +462,29 @@ void PodcastIndexClient::onReplyFinished()
     const QNetworkReply::NetworkError netError = reply->error();
     const QString netErrorString = reply->errorString();
     const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString detail = extractErrorDetail(payload);
     reply->deleteLater();
 
     if (netError != QNetworkReply::NoError) {
-        setErrorMessage(QString::fromLatin1("Network error: %1").arg(netErrorString));
+        QString message = QString::fromLatin1("Network error: %1").arg(netErrorString);
+        if (statusCode > 0) {
+            message += QString::fromLatin1(" (HTTP %1)").arg(statusCode);
+        }
+        if (!detail.isEmpty()) {
+            message += QString::fromLatin1(" - %1").arg(detail);
+        }
+        setErrorMessage(message);
         setBusy(false);
         m_requestType = NoneRequest;
         return;
     }
 
     if (statusCode < 200 || statusCode >= 300) {
-        setErrorMessage(QString::fromLatin1("HTTP error %1").arg(statusCode));
+        QString message = QString::fromLatin1("HTTP error %1").arg(statusCode);
+        if (!detail.isEmpty()) {
+            message += QString::fromLatin1(" - %1").arg(detail);
+        }
+        setErrorMessage(message);
         setBusy(false);
         m_requestType = NoneRequest;
         return;

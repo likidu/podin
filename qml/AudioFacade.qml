@@ -77,6 +77,7 @@ Item {
             available = false;
             errorString = "Dynamic QML creation not available.";
             status = invalidMedia;
+            console.log("AudioFacade: Dynamic QML creation not available");
             error();
             return;
         }
@@ -92,8 +93,9 @@ Item {
             updateSeekable();
         } catch (e) {
             available = false;
-            errorString = "QtMultimediaKit plugin unavailable.";
+            errorString = "QtMultimediaKit plugin unavailable: " + e;
             status = invalidMedia;
+            console.log("AudioFacade: Failed to create Audio element:", e);
             error();
         }
         _creating = false;
@@ -102,6 +104,7 @@ Item {
     function play() {
         ensureImpl();
         if (_impl) {
+            console.log("AudioFacade: play() source=" + _impl.source);
             _impl.play();
         } else {
             errorString = "Audio playback unavailable.";
@@ -121,6 +124,34 @@ Item {
         } else {
             state = stoppedState;
         }
+    }
+
+    function reset() {
+        if (_impl) {
+            _impl.stop();
+            // Clear source to fully reset the backend
+            _impl.source = "";
+        }
+        state = stoppedState;
+        status = unknownStatus;
+        position = 0;
+        duration = 0;
+        bufferProgress = 0;
+        errorString = "";
+    }
+
+    function prepareForNewSource() {
+        // Stop and clear, then caller should wait before setting new source
+        if (_impl) {
+            _impl.stop();
+            _impl.source = "";
+        }
+        state = stoppedState;
+        status = unknownStatus;
+        position = 0;
+        duration = 0;
+        bufferProgress = 0;
+        errorString = "";
     }
 
     function seek(positionMs) {
@@ -150,18 +181,35 @@ Item {
 
     Connections {
         id: implConnections
-        target: _impl
+        target: _impl ? _impl : null
         ignoreUnknownSignals: true
-        onStateChanged: root.state = _impl.state
+        onStateChanged: {
+            if (!_impl) return;
+            root.state = _impl.state;
+        }
         onStatusChanged: {
+            if (!_impl) return;
+            console.log("AudioFacade: status=" + _impl.status + " error=" + (_impl.error || "none") + " errorStr=" + (_impl.errorString || "none"));
             root.status = _impl.status;
             root.updateSeekable();
+            if (_impl.status === root.invalidMedia && _impl.errorString) {
+                root.errorString = _impl.errorString;
+                console.log("AudioFacade: InvalidMedia error:", _impl.errorString);
+            }
         }
-        onPositionChanged: root.position = _impl.position
-        onDurationChanged: root.duration = _impl.duration
+        onPositionChanged: {
+            if (!_impl) return;
+            root.position = _impl.position;
+        }
+        onDurationChanged: {
+            if (!_impl) return;
+            root.duration = _impl.duration;
+        }
         onBufferProgressChanged: root.updateBufferProgress()
         onBufferStatusChanged: root.updateBufferProgress()
         onError: {
+            if (!_impl) return;
+            console.log("AudioFacade: Error:", _impl.errorString);
             root.errorString = _impl.errorString;
             root.error();
         }

@@ -11,6 +11,8 @@ class StorageManager : public QObject
     Q_PROPERTY(QVariantList subscriptions READ subscriptions NOTIFY subscriptionsChanged)
     Q_PROPERTY(int forwardSkipSeconds READ forwardSkipSeconds WRITE setForwardSkipSeconds NOTIFY forwardSkipSecondsChanged)
     Q_PROPERTY(int backwardSkipSeconds READ backwardSkipSeconds WRITE setBackwardSkipSeconds NOTIFY backwardSkipSecondsChanged)
+    Q_PROPERTY(bool enableArtworkLoading READ enableArtworkLoading WRITE setEnableArtworkLoading NOTIFY enableArtworkLoadingChanged)
+    Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 
 public:
     explicit StorageManager(QObject *parent = 0);
@@ -18,9 +20,12 @@ public:
     QVariantList subscriptions() const;
     int forwardSkipSeconds() const;
     int backwardSkipSeconds() const;
+    bool enableArtworkLoading() const;
+    QString lastError() const;
 
     void setForwardSkipSeconds(int seconds);
     void setBackwardSkipSeconds(int seconds);
+    void setEnableArtworkLoading(bool enabled);
 
     Q_INVOKABLE void refreshSubscriptions();
     Q_INVOKABLE bool isSubscribed(int feedId) const;
@@ -39,10 +44,14 @@ public:
                                          int publishedAt,
                                          int playState);
 
+    Q_INVOKABLE void clearLastError();
+
 signals:
     void subscriptionsChanged();
     void forwardSkipSecondsChanged();
     void backwardSkipSecondsChanged();
+    void enableArtworkLoadingChanged();
+    void lastErrorChanged();
 
 private:
     QString dbPath() const;
@@ -53,9 +62,13 @@ private:
     int readSetting(const QString &key, int defaultValue) const;
     void setSubscriptions(const QVariantList &list);
 
+    void setLastError(const QString &error);
+
     QVariantList m_subscriptions;
     int m_forwardSkipSeconds;
     int m_backwardSkipSeconds;
+    bool m_enableArtworkLoading;
+    QString m_lastError;
 };
 
 #endif // STORAGEMANAGER_H

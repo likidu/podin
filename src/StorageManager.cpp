@@ -1,8 +1,11 @@
 #include "StorageManager.h"
 
+#include <QtCore/QCoreApplication>
 #include <QtCore/QDateTime>
 #include <QtCore/QDir>
+#include <QtCore/QFile>
 #include <QtCore/QTextStream>
+#include <QtCore/QDebug>
 #include <QtGui/QDesktopServices>
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlError>
@@ -17,9 +20,9 @@ void logError(const QString &context, const QSqlError &error)
     if (error.type() == QSqlError::NoError) {
         return;
     }
-    QTextStream ts(stdout);
-    ts << "Storage error (" << context << "): " << error.text() << '\n';
-    ts.flush();
+    qWarning("Storage error (%s): %s",
+             qPrintable(context),
+             qPrintable(error.text()));
 }
 }
 
@@ -27,6 +30,7 @@ StorageManager::StorageManager(QObject *parent)
     : QObject(parent)
     , m_forwardSkipSeconds(30)
     , m_backwardSkipSeconds(15)
+    , m_enableArtworkLoading(false)
 {
     initDb();
     loadSettings();
@@ -46,6 +50,11 @@ int StorageManager::forwardSkipSeconds() const
 int StorageManager::backwardSkipSeconds() const
 {
     return m_backwardSkipSeconds;
+}
+
+bool StorageManager::enableArtworkLoading() const
+{
+    return m_enableArtworkLoading;
 }
 
 void StorageManager::setForwardSkipSeconds(int seconds)
@@ -68,6 +77,16 @@ void StorageManager::setBackwardSkipSeconds(int seconds)
     m_backwardSkipSeconds = clamped;
     saveSetting(QString::fromLatin1("backward_skip_seconds"), m_backwardSkipSeconds);
     emit backwardSkipSecondsChanged();
+}
+
+void StorageManager::setEnableArtworkLoading(bool enabled)
+{
+    if (enabled == m_enableArtworkLoading) {
+        return;
+    }
+    m_enableArtworkLoading = enabled;
+    saveSetting(QString::fromLatin1("enable_artwork_loading"), m_enableArtworkLoading ? 1 : 0);
+    emit enableArtworkLoadingChanged();
 }
 
 void StorageManager::refreshSubscriptions()
@@ -109,10 +128,13 @@ bool StorageManager::isSubscribed(int feedId) const
 
 void StorageManager::subscribe(int feedId, const QString &title, const QString &image)
 {
+    setLastError(QString());
     if (feedId <= 0) {
+        setLastError(QString::fromLatin1("Subscribe failed: invalid feed ID (%1)").arg(feedId));
         return;
     }
     if (!ensureOpen()) {
+        setLastError(QString::fromLatin1("Subscribe failed: database not open"));
         return;
     }
 
@@ -127,6 +149,7 @@ void StorageManager::subscribe(int feedId, const QString &title, const QString &
 
     if (!query.exec()) {
         logError("subscribe", query.lastError());
+        setLastError(QString::fromLatin1("Subscribe failed: %1").arg(query.lastError().text()));
         return;
     }
 
@@ -135,10 +158,13 @@ void StorageManager::subscribe(int feedId, const QString &title, const QString &
 
 void StorageManager::unsubscribe(int feedId)
 {
+    setLastError(QString());
     if (feedId <= 0) {
+        setLastError(QString::fromLatin1("Unsubscribe failed: invalid feed ID (%1)").arg(feedId));
         return;
     }
     if (!ensureOpen()) {
+        setLastError(QString::fromLatin1("Unsubscribe failed: database not open"));
         return;
     }
 
@@ -149,6 +175,7 @@ void StorageManager::unsubscribe(int feedId)
 
     if (!query.exec()) {
         logError("unsubscribe", query.lastError());
+        setLastError(QString::fromLatin1("Unsubscribe failed: %1").arg(query.lastError().text()));
         return;
     }
 
@@ -246,10 +273,57 @@ QVariantMap StorageManager::loadEpisodeState(const QString &episodeId) const
 
 QString StorageManager::dbPath() const
 {
-    QString base = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
+    QString base;
+#ifdef Q_OS_SYMBIAN
+    // Try multiple locations on Symbian
+    QStringList candidates;
+    
+    // Private app directory (most reliable)
+    QString privatePath = QCoreApplication::applicationDirPath();
+    if (!privatePath.isEmpty()) {
+        candidates << privatePath;
+    }
+    
+    // Home path
+    QString homePath = QDir::homePath();
+    if (!homePath.isEmpty()) {
+        candidates << (homePath + QLatin1String("/podin"));
+    }
+    
+    // Standard data locations
+    candidates << QLatin1String("E:/Data/Podin");
+    candidates << QLatin1String("C:/Data/Podin");
+    
+    // Try each candidate
+    for (int i = 0; i < candidates.size(); ++i) {
+        QDir dir(candidates.at(i));
+        if (!dir.exists()) {
+            if (!dir.mkpath(QLatin1String("."))) {
+                continue;
+            }
+        }
+        // Test if we can write to this directory
+        QString testFile = dir.filePath(QLatin1String(".write_test"));
+        QFile f(testFile);
+        if (f.open(QIODevice::WriteOnly)) {
+            f.close();
+            f.remove();
+            base = candidates.at(i);
+            qDebug() << "StorageManager: Using db path:" << base;
+            break;
+        }
+    }
+    
+    if (base.isEmpty()) {
+        base = QLatin1String("C:/Data/Podin");
+        qWarning() << "StorageManager: No writable path found, falling back to:" << base;
+    }
+#else
+    base = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
     if (base.isEmpty()) {
         base = QDir::homePath() + QLatin1String("/.podin");
     }
+#endif
     QDir dir(base);
     if (!dir.exists()) {
         dir.mkpath(QLatin1String("."));
@@ -276,6 +350,10 @@ bool StorageManager::ensureOpen() const
 
 void StorageManager::initDb()
 {
+    if (!QSqlDatabase::isDriverAvailable(QLatin1String("QSQLITE"))) {
+        qWarning("Storage error (init db): QSQLITE driver not available.");
+        return;
+    }
     if (QSqlDatabase::contains(QLatin1String(kConnectionName))) {
         return;
     }
@@ -327,6 +405,10 @@ void StorageManager::initDb()
                                   "VALUES ('backward_skip_seconds', 15)"))) {
         logError("seed backward skip setting", query.lastError());
     }
+    if (!query.exec(QLatin1String("INSERT OR IGNORE INTO settings (key, value) "
+                                  "VALUES ('enable_artwork_loading', 0)"))) {
+        logError("seed artwork loading setting", query.lastError());
+    }
 
     QSqlQuery pragma(db);
     bool havePlayState = false;
@@ -361,6 +443,7 @@ void StorageManager::loadSettings()
     }
     m_forwardSkipSeconds = readSetting(QString::fromLatin1("forward_skip_seconds"), 30);
     m_backwardSkipSeconds = readSetting(QString::fromLatin1("backward_skip_seconds"), 15);
+    m_enableArtworkLoading = readSetting(QString::fromLatin1("enable_artwork_loading"), 0) != 0;
 }
 
 void StorageManager::saveSetting(const QString &key, int value)
@@ -401,4 +484,23 @@ void StorageManager::setSubscriptions(const QVariantList &list)
 {
     m_subscriptions = list;
     emit subscriptionsChanged();
+}
+
+QString StorageManager::lastError() const
+{
+    return m_lastError;
+}
+
+void StorageManager::setLastError(const QString &error)
+{
+    if (m_lastError == error) {
+        return;
+    }
+    m_lastError = error;
+    emit lastErrorChanged();
+}
+
+void StorageManager::clearLastError()
+{
+    setLastError(QString());
 }
