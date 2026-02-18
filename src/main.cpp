@@ -25,6 +25,7 @@
 #include "StorageManager.h"
 #include "StreamUrlResolver.h"
 #include "TlsChecker.h"
+#include "AudioEngine.h"
 
 namespace {
 QTextStream &infoStream()
@@ -374,10 +375,12 @@ int main(int argc, char *argv[])
 
     PodcastIndexClient apiClient;
     StorageManager storage;
+    flushLogQueue(); // Flush storage init logs immediately
     ArtworkCacheManager artworkCache;
     MemoryMonitor memoryMonitor;
     StreamUrlResolver streamUrlResolver;
     TlsChecker tlsChecker;
+    AudioEngine audioEngine;
 
     QDeclarativeView view;
     view.rootContext()->setContextProperty("apiClient", &apiClient);
@@ -386,6 +389,7 @@ int main(int argc, char *argv[])
     view.rootContext()->setContextProperty("memoryMonitor", &memoryMonitor);
     view.rootContext()->setContextProperty("streamUrlResolver", &streamUrlResolver);
     view.rootContext()->setContextProperty("tlsChecker", &tlsChecker);
+    view.rootContext()->setContextProperty("audioEngine", &audioEngine);
     applyImportPaths(view.engine());
 
     view.setSource(QUrl("qrc:/qml/AppWindow.qml"));

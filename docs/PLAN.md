@@ -78,6 +78,11 @@ Status notes:
 - Done: position/duration reflected in UI.
 - Done: podcast detail API screen uses /podcasts/byfeedid.
 - Done: seek slider and buffer/status text in player panel.
+- Investigated: forward/back (skip) buttons do nothing on device — QtMultimediaKit 1.1 Audio
+  has no seek() method; seeking should use the position property. However, writing position from
+  QML causes KErrMMAudioDevice (-12014) and bricks audio until phone restart. Reverted to no-op.
+  Seeking likely needs a C++ implementation with proper MMF error handling.
+  See docs/DEVICE_NOTES.md for full details.
 
 Milestone 4 — Local state and offline basics (in progress)
 - Storage:
@@ -106,6 +111,10 @@ Milestone 5 — Robustness and UX polish (partial)
 Status notes:
 - Done (extra): TLS 1.2 check UI and runtime diagnostics.
 - Pending: caching/offline behavior, image caching, bandwidth controls.
+- Pending: use custom SVG as toolbar icon.
+- Pending: integrate podcast image proxy service (http://podcastimage.liya.design/) to replace
+  disabled-by-default Podcast Index images. Source: https://github.com/likidu/podcastimages.
+  This service returns optimized/compressed images suitable for low-bandwidth devices.
 - Next steps (memory): consider replacing page transitions (Search -> Detail -> Episodes -> Player) to reduce stack retention; consider lowering episode fetch count (e.g., 5–10) on low-RAM devices; add optional RAM/heap logging around episode tap to confirm spikes.
 
 Milestone 6 — Authentication and future "login" hook (partial)

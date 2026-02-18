@@ -13,6 +13,9 @@ class StorageManager : public QObject
     Q_PROPERTY(int backwardSkipSeconds READ backwardSkipSeconds WRITE setBackwardSkipSeconds NOTIFY backwardSkipSecondsChanged)
     Q_PROPERTY(bool enableArtworkLoading READ enableArtworkLoading WRITE setEnableArtworkLoading NOTIFY enableArtworkLoadingChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
+    Q_PROPERTY(QString dbPath READ dbPathForQml CONSTANT)
+    Q_PROPERTY(QString dbStatus READ dbStatus CONSTANT)
+    Q_PROPERTY(QString dbPathLog READ dbPathLog CONSTANT)
 
 public:
     explicit StorageManager(QObject *parent = 0);
@@ -22,6 +25,9 @@ public:
     int backwardSkipSeconds() const;
     bool enableArtworkLoading() const;
     QString lastError() const;
+    QString dbPathForQml() const;
+    QString dbStatus() const;
+    QString dbPathLog() const;
 
     void setForwardSkipSeconds(int seconds);
     void setBackwardSkipSeconds(int seconds);
@@ -54,7 +60,7 @@ signals:
     void lastErrorChanged();
 
 private:
-    QString dbPath() const;
+    QString dbPath();
     bool ensureOpen() const;
     void initDb();
     void loadSettings();
@@ -69,6 +75,9 @@ private:
     int m_backwardSkipSeconds;
     bool m_enableArtworkLoading;
     QString m_lastError;
+    QString m_dbPath;
+    QString m_dbStatus;
+    QString m_dbPathLog;
 };
 
 #endif // STORAGEMANAGER_H

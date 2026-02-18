@@ -30,28 +30,31 @@ Item {
     // Resolver state
     property bool isResolving: streamUrlResolver ? streamUrlResolver.resolving : false
 
-    // Audio state (forwarded from AudioFacade)
-    property int state: audio.state
-    property int status: audio.status
-    property int position: audio.position
-    property int duration: audio.duration
-    property real bufferProgress: audio.bufferProgress
-    property bool seekable: audio.seekable
-    property bool available: audio.available
-    property string errorString: audio.errorString
+    // Audio backend (C++ AudioEngine exposed as context property)
+    property QtObject audio: audioEngine
+
+    // Audio state (forwarded from audio engine)
+    property int state: audio ? audio.state : 0
+    property int status: audio ? audio.status : 0
+    property int position: audio ? audio.position : 0
+    property int duration: audio ? audio.duration : 0
+    property real bufferProgress: audio ? audio.bufferProgress : 0
+    property bool seekable: audio ? audio.seekable : false
+    property bool available: audio ? audio.available : false
+    property string errorString: audio ? audio.errorString : ""
 
     // Audio status constants
-    property int stoppedState: audio.stoppedState
-    property int playingState: audio.playingState
-    property int pausedState: audio.pausedState
-    property int noMediaStatus: audio.noMediaStatus
-    property int loadingStatus: audio.loadingStatus
-    property int loadedStatus: audio.loadedStatus
-    property int bufferingStatus: audio.bufferingStatus
-    property int bufferedStatus: audio.bufferedStatus
-    property int stalledStatus: audio.stalledStatus
-    property int endOfMedia: audio.endOfMedia
-    property int invalidMedia: audio.invalidMedia
+    property int stoppedState: audio ? audio.stoppedState : 0
+    property int playingState: audio ? audio.playingState : 1
+    property int pausedState: audio ? audio.pausedState : 2
+    property int noMediaStatus: audio ? audio.noMediaStatus : 1
+    property int loadingStatus: audio ? audio.loadingStatus : 2
+    property int loadedStatus: audio ? audio.loadedStatus : 3
+    property int bufferingStatus: audio ? audio.bufferingStatus : 5
+    property int bufferedStatus: audio ? audio.bufferedStatus : 6
+    property int stalledStatus: audio ? audio.stalledStatus : 4
+    property int endOfMedia: audio ? audio.endOfMedia : 7
+    property int invalidMedia: audio ? audio.invalidMedia : 8
 
     // ========== Public API ==========
 
@@ -108,8 +111,6 @@ Item {
         // Check memory before attempting playback
         if (memoryMonitor && memoryMonitor.isMemoryCritical) {
             console.log("PlaybackController: Memory critically low, refusing to play");
-            audio.errorString = "Memory too low to play. Please close other apps.";
-            audio.error();
             isPlaying = false;
             manualPaused = true;
             return;
@@ -123,8 +124,7 @@ Item {
             return;
         }
 
-        audio.ensureImpl();
-        if (!audio.available) {
+        if (!audio || !audio.available) {
             isPlaying = false;
             manualPaused = true;
             return;
@@ -146,8 +146,7 @@ Item {
     }
 
     function pause() {
-        audio.ensureImpl();
-        if (!audio.available) {
+        if (!audio || !audio.available) {
             return;
         }
         if (!(pendingSeekMs > 0 && !resumeApplied)) {
@@ -168,8 +167,7 @@ Item {
     }
 
     function seek(positionMs) {
-        audio.ensureImpl();
-        if (!audio.available) {
+        if (!audio || !audio.available) {
             return;
         }
         var target = Math.max(0, positionMs);
@@ -423,29 +421,37 @@ Item {
     }
 
     // ========== Audio Backend ==========
+    // AudioEngine is a C++ QMediaPlayer wrapper exposed as "audioEngine" context property.
+    // The "audio" property above binds to it.
 
-    AudioFacade {
-        id: audio
-        source: playback.streamUrl
-        volume: 1.0
-        muted: false
+    onStreamUrlChanged: {
+        if (audio) {
+            audio.source = streamUrl;
+        }
+    }
+
+    Connections {
+        target: audio
+        ignoreUnknownSignals: true
 
         onStatusChanged: {
+            var st = audio.status;
+
             if (!playback.manualPaused &&
-                (status === audio.loadingStatus ||
-                 status === audio.bufferingStatus ||
-                 status === audio.loadedStatus ||
-                 status === audio.bufferedStatus ||
-                 status === audio.stalledStatus)) {
+                (st === playback.loadingStatus ||
+                 st === playback.bufferingStatus ||
+                 st === playback.loadedStatus ||
+                 st === playback.bufferedStatus ||
+                 st === playback.stalledStatus)) {
                 playback.isPlaying = true;
             }
 
             if (!playback.resumeApplied &&
                 playback.pendingSeekMs > 0 &&
-                (status === audio.loadedStatus ||
-                 status === audio.bufferingStatus ||
-                 status === audio.bufferedStatus ||
-                 status === audio.stalledStatus)) {
+                (st === playback.loadedStatus ||
+                 st === playback.bufferingStatus ||
+                 st === playback.bufferedStatus ||
+                 st === playback.stalledStatus)) {
                 audio.seek(playback.pendingSeekMs);
                 playback.resumeApplied = true;
                 if (playback.pauseAfterSeek) {
@@ -456,21 +462,18 @@ Item {
                 }
             }
 
-            if (status === audio.endOfMedia) {
+            if (st === playback.endOfMedia) {
                 playback.isPlaying = false;
                 playback.pendingSeekMs = 0;
                 playback.resumeApplied = true;
                 playback.saveProgress(0);
             }
 
-            if (status === audio.invalidMedia) {
+            if (st === playback.invalidMedia) {
                 playback.handlePlaybackError();
             }
         }
-    }
 
-    Connections {
-        target: audio
         onError: playback.handlePlaybackError()
     }
 

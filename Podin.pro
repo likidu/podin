@@ -3,6 +3,8 @@ TARGET = Podin
 
 # Qt 4.x modules
 QT += core gui network declarative sql
+CONFIG += mobility
+MOBILITY += multimedia
 symbian:LIBS += -lhal
 
 CONFIG -= debug_and_release
@@ -25,9 +27,16 @@ symbian {
     # Required capabilities for network streaming audio
     TARGET.CAPABILITY += NetworkServices ReadUserData WriteUserData UserEnvironment
 
-    sqldrivers.path = /resource/qt/plugins/sqldrivers
-    sqldrivers.files = $$[QT_INSTALL_PLUGINS]/sqldrivers/qsqlite.dll
-    DEPLOYMENT += sqldrivers
+    # Note: SQLite driver is built into QtSql.dll on Symbian, no separate plugin deployment needed
+
+    # Create the private data directory during installation
+    # This ensures the app can write its database there
+    DEPLOYMENT.installer_header = 0x2002CCCF
+
+    # Deploy an empty placeholder file to create the private directory
+    emptyfile.sources = data/.placeholder
+    emptyfile.path = /private/ea711e8d
+    DEPLOYMENT += emptyfile
 }
 
 SOURCES += \
@@ -37,7 +46,8 @@ SOURCES += \
     src/PodcastIndexClient.cpp \
     src/StreamUrlResolver.cpp \
     src/TlsChecker.cpp \
-    src/StorageManager.cpp
+    src/StorageManager.cpp \
+    src/AudioEngine.cpp
 
 HEADERS += \
     src/ArtworkCacheManager.h \
@@ -47,7 +57,8 @@ HEADERS += \
     src/StreamUrlResolver.h \
     src/TlsChecker.h \
     src/ApiConfig.h \
-    src/StorageManager.h
+    src/StorageManager.h \
+    src/AudioEngine.h
 
 RESOURCES += \
     qml/qml.qrc
@@ -61,5 +72,4 @@ OTHER_FILES += \
     qml/PlaybackController.qml \
     qml/SubscriptionsPage.qml \
     qml/SettingsPage.qml \
-    qml/PodinPageStackWindow.qml \
-    qml/AudioFacade.qml
+    qml/PodinPageStackWindow.qml

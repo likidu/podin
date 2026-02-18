@@ -256,6 +256,80 @@ Page {
                     page.refreshSubscriptionState();
                 }
             }
+
+            // Debug section
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#4b5f86"
+            }
+
+            Text {
+                width: parent.width
+                text: "Debug Info"
+                color: "#8899bb"
+                font.pixelSize: 14
+                font.bold: true
+            }
+
+            Text {
+                width: parent.width
+                text: "Storage: " + (storage ? "available" : "NOT AVAILABLE")
+                color: storage ? "#88ff88" : "#ff8888"
+                font.pixelSize: 14
+            }
+
+            Text {
+                width: parent.width
+                text: "DB Path: " + (storage ? storage.dbPath : "N/A")
+                color: "#b7c4e0"
+                font.pixelSize: 12
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                text: "DB Status: " + (storage ? storage.dbStatus : "N/A")
+                color: "#b7c4e0"
+                font.pixelSize: 12
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                text: "Path Log:\n" + (storage ? storage.dbPathLog : "N/A")
+                color: "#aabbcc"
+                font.pixelSize: 11
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                text: "Subscriptions count: " + (storage && storage.subscriptions ? storage.subscriptions.length : 0)
+                color: "#b7c4e0"
+                font.pixelSize: 14
+            }
+
+            Text {
+                width: parent.width
+                text: "Feed ID: " + page.feedId + " | Subscribed: " + (page.subscribed ? "YES" : "NO")
+                color: "#b7c4e0"
+                font.pixelSize: 14
+            }
+
+            Text {
+                width: parent.width
+                property string errText: storage && storage.lastError ? storage.lastError : ""
+                text: "Last Error: " + (errText.length > 0 ? errText : "(none)")
+                color: errText.length > 0 ? "#ff8888" : "#88ff88"
+                font.pixelSize: 14
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Item {
+                width: parent.width
+                height: 20
+            }
         }
     }
 

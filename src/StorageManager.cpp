@@ -31,6 +31,7 @@ StorageManager::StorageManager(QObject *parent)
     , m_forwardSkipSeconds(30)
     , m_backwardSkipSeconds(15)
     , m_enableArtworkLoading(false)
+    , m_dbStatus(QLatin1String("not initialized"))
 {
     initDb();
     loadSettings();
@@ -271,64 +272,114 @@ QVariantMap StorageManager::loadEpisodeState(const QString &episodeId) const
     return state;
 }
 
-QString StorageManager::dbPath() const
+QString StorageManager::dbPath()
 {
     QString base;
+    m_dbPathLog.clear();
 #ifdef Q_OS_SYMBIAN
     // Try multiple locations on Symbian
+    // For self-signed apps, only the private directory is writable
     QStringList candidates;
-    
-    // Private app directory (most reliable)
-    QString privatePath = QCoreApplication::applicationDirPath();
-    if (!privatePath.isEmpty()) {
-        candidates << privatePath;
+
+    // 1. App's private directory from QDesktopServices (works for self-signed)
+    QString dataPath = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
+    if (!dataPath.isEmpty()) {
+        candidates << dataPath;
     }
-    
-    // Home path
-    QString homePath = QDir::homePath();
-    if (!homePath.isEmpty()) {
-        candidates << (homePath + QLatin1String("/podin"));
+    m_dbPathLog += QString::fromLatin1("DataLocation: %1\n").arg(dataPath.isEmpty() ? QLatin1String("(empty)") : dataPath);
+
+    // 2. Try app's private directory using QCoreApplication path
+    QString appPrivate = QCoreApplication::applicationDirPath();
+    if (!appPrivate.isEmpty() && !candidates.contains(appPrivate)) {
+        candidates << appPrivate;
     }
+    m_dbPathLog += QString::fromLatin1("AppDirPath: %1\n").arg(appPrivate.isEmpty() ? QLatin1String("(empty)") : appPrivate);
+
+    // 3. Try C:\data\Podin (requires WriteUserData capability - won't work self-signed)
+    candidates << QLatin1String("C:/data/Podin");
+
+    // 4. Try E:\data\Podin (memory card - might work)
+    candidates << QLatin1String("E:/data/Podin");
+
+    // 5. Try temp location as last resort
+    QString tempPath = QDir::tempPath();
+    if (!tempPath.isEmpty() && !candidates.contains(tempPath)) {
+        candidates << tempPath;
+    }
+    m_dbPathLog += QString::fromLatin1("TempPath: %1\n").arg(tempPath.isEmpty() ? QLatin1String("(empty)") : tempPath);
+    m_dbPathLog += QString::fromLatin1("Candidates: %1\n").arg(candidates.join(QLatin1String(", ")));
     
-    // Standard data locations
-    candidates << QLatin1String("E:/Data/Podin");
-    candidates << QLatin1String("C:/Data/Podin");
-    
-    // Try each candidate
+    // Try each candidate - test with actual SQLite open
     for (int i = 0; i < candidates.size(); ++i) {
-        QDir dir(candidates.at(i));
+        QString candidatePath = candidates.at(i);
+        QDir dir(candidatePath);
+
+        // Try to create directory
         if (!dir.exists()) {
             if (!dir.mkpath(QLatin1String("."))) {
+                m_dbPathLog += QString::fromLatin1("mkdir FAIL: %1\n").arg(candidatePath);
+                qDebug() << "StorageManager: mkdir failed for" << candidatePath;
                 continue;
             }
+            m_dbPathLog += QString::fromLatin1("mkdir OK: %1\n").arg(candidatePath);
+        } else {
+            m_dbPathLog += QString::fromLatin1("exists: %1\n").arg(candidatePath);
         }
-        // Test if we can write to this directory
-        QString testFile = dir.filePath(QLatin1String(".write_test"));
-        QFile f(testFile);
-        if (f.open(QIODevice::WriteOnly)) {
-            f.close();
-            f.remove();
-            base = candidates.at(i);
-            qDebug() << "StorageManager: Using db path:" << base;
-            break;
+
+        // Test by actually opening SQLite database
+        QString testDbPath = dir.filePath(QLatin1String("test.db"));
+        if (QSqlDatabase::contains(QLatin1String("path_test"))) {
+            QSqlDatabase::removeDatabase(QLatin1String("path_test"));
         }
+
+        QSqlDatabase testDb = QSqlDatabase::addDatabase(QLatin1String("QSQLITE"), QLatin1String("path_test"));
+        testDb.setDatabaseName(testDbPath);
+        if (testDb.open()) {
+            QSqlQuery q(testDb);
+            if (q.exec(QLatin1String("CREATE TABLE IF NOT EXISTS test(id INTEGER)"))) {
+                testDb.close();
+                QSqlDatabase::removeDatabase(QLatin1String("path_test"));
+                QFile::remove(testDbPath);
+                base = candidatePath;
+                m_dbPathLog += QString::fromLatin1("SQLite OK: %1\n").arg(candidatePath);
+                qDebug() << "StorageManager: Using db path:" << base;
+                break;
+            }
+            m_dbPathLog += QString::fromLatin1("SQLite CREATE FAIL: %1\n").arg(candidatePath);
+        } else {
+            m_dbPathLog += QString::fromLatin1("SQLite open FAIL: %1 - %2\n").arg(candidatePath, testDb.lastError().text());
+        }
+        testDb.close();
+        QSqlDatabase::removeDatabase(QLatin1String("path_test"));
+        QFile::remove(testDbPath);
+        qDebug() << "StorageManager: SQLite test failed for" << candidatePath;
     }
-    
+
+    // Last resort: in-memory database (data won't persist)
     if (base.isEmpty()) {
-        base = QLatin1String("C:/Data/Podin");
-        qWarning() << "StorageManager: No writable path found, falling back to:" << base;
+        qWarning() << "StorageManager: No writable path found, using in-memory database";
+        m_dbPathLog += QLatin1String("FALLBACK: in-memory\n");
+        m_dbPath = QLatin1String(":memory:");
+        return m_dbPath;
     }
 #else
     base = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
+    m_dbPathLog += QString::fromLatin1("DataLocation: %1\n").arg(base.isEmpty() ? QLatin1String("(empty)") : base);
     if (base.isEmpty()) {
         base = QDir::homePath() + QLatin1String("/.podin");
+        m_dbPathLog += QString::fromLatin1("Using home fallback: %1\n").arg(base);
     }
 #endif
     QDir dir(base);
     if (!dir.exists()) {
-        dir.mkpath(QLatin1String("."));
+        if (dir.mkpath(QLatin1String("."))) {
+            m_dbPathLog += QString::fromLatin1("Created dir: %1\n").arg(base);
+        } else {
+            m_dbPathLog += QString::fromLatin1("mkdir FAIL: %1\n").arg(base);
+        }
     }
-    return dir.filePath(QLatin1String("podin.db"));
+    m_dbPath = dir.filePath(QLatin1String("podin.db"));
+    return m_dbPath;
 }
 
 bool StorageManager::ensureOpen() const
@@ -350,19 +401,55 @@ bool StorageManager::ensureOpen() const
 
 void StorageManager::initDb()
 {
-    if (!QSqlDatabase::isDriverAvailable(QLatin1String("QSQLITE"))) {
-        qWarning("Storage error (init db): QSQLITE driver not available.");
-        return;
-    }
+    QStringList drivers = QSqlDatabase::drivers();
+    qDebug() << "StorageManager: Available SQL drivers:" << drivers;
+    m_dbPathLog += QString::fromLatin1("Drivers: %1\n").arg(drivers.join(QLatin1String(", ")));
+
     if (QSqlDatabase::contains(QLatin1String(kConnectionName))) {
+        m_dbStatus = QLatin1String("already exists");
         return;
     }
 
-    QSqlDatabase db = QSqlDatabase::addDatabase(QLatin1String("QSQLITE"), QLatin1String(kConnectionName));
-    db.setDatabaseName(dbPath());
-    if (!db.open()) {
-        logError("init db", db.lastError());
+    QString path = dbPath();
+    qDebug() << "StorageManager: Opening database at:" << path;
+
+    // On Symbian, prefer QSYMSQL (native Symbian SQL) over QSQLITE if available
+    QString driverName;
+#ifdef Q_OS_SYMBIAN
+    if (QSqlDatabase::isDriverAvailable(QLatin1String("QSYMSQL"))) {
+        driverName = QLatin1String("QSYMSQL");
+        qDebug() << "StorageManager: Using QSYMSQL driver";
+    } else
+#endif
+    if (QSqlDatabase::isDriverAvailable(QLatin1String("QSQLITE"))) {
+        driverName = QLatin1String("QSQLITE");
+        qDebug() << "StorageManager: Using QSQLITE driver";
+    } else {
+        m_dbStatus = QString::fromLatin1("no driver available: %1").arg(drivers.join(QLatin1String(", ")));
+        qWarning("Storage error (init db): No SQLite driver available. Drivers: %s",
+                 qPrintable(drivers.join(QLatin1String(", "))));
         return;
+    }
+    m_dbPathLog += QString::fromLatin1("Using driver: %1\n").arg(driverName);
+
+    QSqlDatabase db = QSqlDatabase::addDatabase(driverName, QLatin1String(kConnectionName));
+    db.setDatabaseName(path);
+
+    if (!db.open()) {
+        m_dbStatus = QString::fromLatin1("open failed: %1").arg(db.lastError().text());
+        qWarning("Storage error (init db): Failed to open database at %s - %s",
+                 qPrintable(path),
+                 qPrintable(db.lastError().text()));
+        return;
+    }
+
+    m_dbStatus = QLatin1String("open");
+    qDebug() << "StorageManager: Database opened successfully";
+
+    // Use DELETE journal mode for better Symbian compatibility
+    QSqlQuery journalQuery(db);
+    if (!journalQuery.exec(QLatin1String("PRAGMA journal_mode=DELETE"))) {
+        qDebug() << "StorageManager: Could not set journal_mode";
     }
 
     QSqlQuery query(db);
@@ -503,4 +590,19 @@ void StorageManager::setLastError(const QString &error)
 void StorageManager::clearLastError()
 {
     setLastError(QString());
+}
+
+QString StorageManager::dbPathForQml() const
+{
+    return m_dbPath;
+}
+
+QString StorageManager::dbStatus() const
+{
+    return m_dbStatus;
+}
+
+QString StorageManager::dbPathLog() const
+{
+    return m_dbPathLog;
 }

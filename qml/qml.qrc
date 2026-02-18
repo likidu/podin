@@ -10,6 +10,5 @@
         <file>SettingsPage.qml</file>
         <file>AppWindow.qml</file>
         <file>PodinPageStackWindow.qml</file>
-        <file>AudioFacade.qml</file>
     </qresource>
 </RCC>
