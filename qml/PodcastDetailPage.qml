@@ -283,7 +283,7 @@ Page {
                 width: parent.width
                 text: "DB Path: " + (storage ? storage.dbPath : "N/A")
                 color: "#b7c4e0"
-                font.pixelSize: 12
+                font.pixelSize: 14
                 wrapMode: Text.WrapAnywhere
             }
 
@@ -291,7 +291,7 @@ Page {
                 width: parent.width
                 text: "DB Status: " + (storage ? storage.dbStatus : "N/A")
                 color: "#b7c4e0"
-                font.pixelSize: 12
+                font.pixelSize: 14
                 wrapMode: Text.WrapAnywhere
             }
 
@@ -299,7 +299,7 @@ Page {
                 width: parent.width
                 text: "Path Log:\n" + (storage ? storage.dbPathLog : "N/A")
                 color: "#aabbcc"
-                font.pixelSize: 11
+                font.pixelSize: 14
                 wrapMode: Text.WrapAnywhere
             }
 

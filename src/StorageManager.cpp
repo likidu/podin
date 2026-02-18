@@ -309,30 +309,49 @@ QString StorageManager::dbPath()
     m_dbPathLog += QString::fromLatin1("TempPath: %1\n").arg(tempPath.isEmpty() ? QLatin1String("(empty)") : tempPath);
     m_dbPathLog += QString::fromLatin1("Candidates: %1\n").arg(candidates.join(QLatin1String(", ")));
     
+    // Determine which driver will actually be used
+    QString testDriver = QLatin1String("QSQLITE");
+    if (QSqlDatabase::isDriverAvailable(QLatin1String("QSYMSQL"))) {
+        testDriver = QLatin1String("QSYMSQL");
+    }
+    m_dbPathLog += QString::fromLatin1("TestDriver: %1\n").arg(testDriver);
+
     // Try each candidate - test with actual SQLite open
     for (int i = 0; i < candidates.size(); ++i) {
         QString candidatePath = candidates.at(i);
         QDir dir(candidatePath);
 
-        // Try to create directory
-        if (!dir.exists()) {
-            if (!dir.mkpath(QLatin1String("."))) {
-                m_dbPathLog += QString::fromLatin1("mkdir FAIL: %1\n").arg(candidatePath);
-                qDebug() << "StorageManager: mkdir failed for" << candidatePath;
-                continue;
+        // On Symbian, paths under /private/ are data-caged:
+        // QDir::exists() returns false even though the directory exists,
+        // and mkpath() fails because the /private/ parent is system-owned.
+        // Skip the exists/mkdir check for these paths and go straight to
+        // the SQLite write test.
+        bool isPrivatePath = candidatePath.contains(QLatin1String("/private/"),
+                                                     Qt::CaseInsensitive);
+        if (!isPrivatePath) {
+            if (!dir.exists()) {
+                if (!dir.mkpath(QLatin1String("."))) {
+                    m_dbPathLog += QString::fromLatin1("mkdir FAIL: %1\n").arg(candidatePath);
+                    qDebug() << "StorageManager: mkdir failed for" << candidatePath;
+                    continue;
+                }
+                m_dbPathLog += QString::fromLatin1("mkdir OK: %1\n").arg(candidatePath);
+            } else {
+                m_dbPathLog += QString::fromLatin1("exists: %1\n").arg(candidatePath);
             }
-            m_dbPathLog += QString::fromLatin1("mkdir OK: %1\n").arg(candidatePath);
         } else {
-            m_dbPathLog += QString::fromLatin1("exists: %1\n").arg(candidatePath);
+            m_dbPathLog += QString::fromLatin1("private (skip mkdir): %1\n").arg(candidatePath);
         }
 
-        // Test by actually opening SQLite database
-        QString testDbPath = dir.filePath(QLatin1String("test.db"));
+        // Test by actually opening SQLite database with the same driver
+        // that initDb() will use
+        QString testDbPath = QDir::toNativeSeparators(
+            dir.filePath(QLatin1String("test.db")));
         if (QSqlDatabase::contains(QLatin1String("path_test"))) {
             QSqlDatabase::removeDatabase(QLatin1String("path_test"));
         }
 
-        QSqlDatabase testDb = QSqlDatabase::addDatabase(QLatin1String("QSQLITE"), QLatin1String("path_test"));
+        QSqlDatabase testDb = QSqlDatabase::addDatabase(testDriver, QLatin1String("path_test"));
         testDb.setDatabaseName(testDbPath);
         if (testDb.open()) {
             QSqlQuery q(testDb);
@@ -371,14 +390,15 @@ QString StorageManager::dbPath()
     }
 #endif
     QDir dir(base);
-    if (!dir.exists()) {
+    bool baseIsPrivate = base.contains(QLatin1String("/private/"), Qt::CaseInsensitive);
+    if (!baseIsPrivate && !dir.exists()) {
         if (dir.mkpath(QLatin1String("."))) {
             m_dbPathLog += QString::fromLatin1("Created dir: %1\n").arg(base);
         } else {
             m_dbPathLog += QString::fromLatin1("mkdir FAIL: %1\n").arg(base);
         }
     }
-    m_dbPath = dir.filePath(QLatin1String("podin.db"));
+    m_dbPath = QDir::toNativeSeparators(dir.filePath(QLatin1String("podin.db")));
     return m_dbPath;
 }
 

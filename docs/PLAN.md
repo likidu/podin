@@ -78,10 +78,9 @@ Status notes:
 - Done: position/duration reflected in UI.
 - Done: podcast detail API screen uses /podcasts/byfeedid.
 - Done: seek slider and buffer/status text in player panel.
-- Investigated: forward/back (skip) buttons do nothing on device — QtMultimediaKit 1.1 Audio
-  has no seek() method; seeking should use the position property. However, writing position from
-  QML causes KErrMMAudioDevice (-12014) and bricks audio until phone restart. Reverted to no-op.
-  Seeking likely needs a C++ implementation with proper MMF error handling.
+- Done: forward/back (seek) via C++ AudioEngine (src/AudioEngine.h/.cpp). Replaced QML
+  AudioFacade with QMediaPlayer wrapper using setPosition() with state guards and pending-seek
+  mechanism. Writing position from QML caused KErrMMAudioDevice (-12014); C++ avoids this.
   See docs/DEVICE_NOTES.md for full details.
 
 Milestone 4 — Local state and offline basics (in progress)
@@ -96,7 +95,11 @@ Milestone 4 — Local state and offline basics (in progress)
 - Deliverable: local subscription management and playback resume.
 - Acceptance: subscribe persists across app restart; resume from last position.
 Status notes:
-- In progress: SQLite storage manager + schema creation.
+- Done: SQLite storage manager + schema creation.
+- Done: SQLite persistence on self-signed SIS — fixed dbPath() to handle Symbian data caging:
+  skip QDir::exists()/mkpath() for /private/ paths, use same SQL driver (QSYMSQL) for test as
+  initDb(), use QDir::toNativeSeparators(). Database now persists in app's private directory.
+  See docs/DEVICE_NOTES.md for details.
 - Done: subscriptions page + toolbar entry.
 - Done: subscribe/unsubscribe from podcast detail page.
 - In progress: resume playback position stored per episode.
