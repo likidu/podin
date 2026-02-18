@@ -112,13 +112,18 @@ Milestone 5 — Robustness and UX polish (partial)
 - Deliverable: smoother user experience without adding extra features.
 - Acceptance: app does not hang on bad network; graceful fallback UI.
 Status notes:
-- Done (extra): TLS 1.2 check UI and runtime diagnostics.
-- Pending: caching/offline behavior, image caching, bandwidth controls.
+- Done (extra): TLS 1.2 check UI and runtime diagnostics (TlsChecker, stripped of old
+  Xiaoyuzhoufm JSON test code).
+- Done: image proxy integration (https://podcastimage.liya.design/). List pages request /32,
+  detail page requests /128. ArtworkCacheManager downloads and caches to E:/Podin/ with
+  Content-Type-based extension detection, SSL error handling, and file:// URL emission.
+  Artwork loading enabled by default. See docs/DEVICE_NOTES.md for bug details.
+- Done: centralized app paths in src/AppConfig.h (kMemoryCardBase, kPhoneBase, kLogsSubdir).
+  Removed old ApiConfig.h (Xiaoyuzhoufm experiment). All paths use AppConfig constants.
+- Pending: caching/offline behavior, bandwidth controls.
 - Pending: use custom SVG as toolbar icon.
-- Pending: integrate podcast image proxy service (http://podcastimage.liya.design/) to replace
-  disabled-by-default Podcast Index images. Source: https://github.com/likidu/podcastimages.
-  This service returns optimized/compressed images suitable for low-bandwidth devices.
-- Next steps (memory): consider replacing page transitions (Search -> Detail -> Episodes -> Player) to reduce stack retention; consider lowering episode fetch count (e.g., 5–10) on low-RAM devices; add optional RAM/heap logging around episode tap to confirm spikes.
+- Next steps (memory): consider replacing page transitions to reduce stack retention;
+  consider lowering episode fetch count on low-RAM devices.
 
 Milestone 6 — Authentication and future "login" hook (partial)
 - Add a settings screen for API key + secret (optional now, required later).

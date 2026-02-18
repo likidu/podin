@@ -117,6 +117,14 @@ Page {
         onTriggered: podcastList.contentY = page.restoreContentY
     }
 
+    function proxyImageUrl(item) {
+        if (item.guid && item.imageUrlHash) {
+            return "https://podcastimage.liya.design/hash/"
+                + item.imageUrlHash + "/feed/" + item.guid + "/32";
+        }
+        return item.image ? item.image : "";
+    }
+
     function openPodcastDetails(podcast) {
         if (!pageStack || !podcast) {
             return;
@@ -283,14 +291,14 @@ Page {
                     Image {
                         anchors.fill: parent
                         anchors.margins: 2
-                        source: storage && storage.enableArtworkLoading ? modelData.image : ""
+                        source: storage && storage.enableArtworkLoading ? page.proxyImageUrl(modelData) : ""
                         fillMode: Image.PreserveAspectFit
                         smooth: true
                         asynchronous: true
                         cache: false
                         sourceSize.width: 44
                         sourceSize.height: 44
-                        visible: storage && storage.enableArtworkLoading && modelData.image && modelData.image.length > 0
+                        visible: storage && storage.enableArtworkLoading && source.toString().length > 0
                         onStatusChanged: {
                             if (status === Image.Ready) {
                                 page.recordImageSize(modelData.feedId, implicitWidth, implicitHeight);

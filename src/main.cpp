@@ -18,7 +18,12 @@
 #include <QtDeclarative/QDeclarativeView>
 #include <QtDeclarative/QDeclarativeContext>
 #include <QtDeclarative/QDeclarativeEngine>
+#include <QtDeclarative/QDeclarativeNetworkAccessManagerFactory>
+#include <QtNetwork/QNetworkAccessManager>
+#include <QtNetwork/QNetworkReply>
+#include <QtNetwork/QSslError>
 
+#include "AppConfig.h"
 #include "ArtworkCacheManager.h"
 #include "MemoryMonitor.h"
 #include "PodcastIndexClient.h"
@@ -44,9 +49,9 @@ QString resolveLogPath()
 {
     QStringList candidates;
     if (QDir(QString::fromLatin1("E:/")).exists()) {
-        candidates << QString::fromLatin1("E:/Podin/logs");
+        candidates << (QString::fromLatin1(AppConfig::kMemoryCardBase) + QLatin1Char('/') + QLatin1String(AppConfig::kLogsSubdir));
     }
-    candidates << QString::fromLatin1("C:/Data/Podin/logs");
+    candidates << (QString::fromLatin1(AppConfig::kPhoneBase) + QLatin1Char('/') + QLatin1String(AppConfig::kLogsSubdir));
 
     const QString dataLocation = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
     if (!dataLocation.isEmpty()) {
@@ -361,6 +366,32 @@ void applyImportPaths(QDeclarativeEngine *engine)
 }
 }
 
+// NAM that ignores SSL errors (needed on Symbian with outdated CA certs)
+class SslIgnoringNam : public QNetworkAccessManager
+{
+    Q_OBJECT
+public:
+    explicit SslIgnoringNam(QObject *parent = 0) : QNetworkAccessManager(parent) {}
+protected:
+    QNetworkReply *createRequest(Operation op, const QNetworkRequest &request,
+                                 QIODevice *outgoingData = 0)
+    {
+        QNetworkReply *reply = QNetworkAccessManager::createRequest(op, request, outgoingData);
+        connect(reply, SIGNAL(sslErrors(const QList<QSslError> &)),
+                reply, SLOT(ignoreSslErrors()));
+        return reply;
+    }
+};
+
+class SslIgnoringNamFactory : public QDeclarativeNetworkAccessManagerFactory
+{
+public:
+    QNetworkAccessManager *create(QObject *parent)
+    {
+        return new SslIgnoringNam(parent);
+    }
+};
+
 int main(int argc, char *argv[])
 {
     QApplication::setGraphicsSystem("raster");
@@ -390,6 +421,8 @@ int main(int argc, char *argv[])
     view.rootContext()->setContextProperty("streamUrlResolver", &streamUrlResolver);
     view.rootContext()->setContextProperty("tlsChecker", &tlsChecker);
     view.rootContext()->setContextProperty("audioEngine", &audioEngine);
+    static SslIgnoringNamFactory namFactory;
+    view.engine()->setNetworkAccessManagerFactory(&namFactory);
     applyImportPaths(view.engine());
 
     view.setSource(QUrl("qrc:/qml/AppWindow.qml"));
@@ -402,3 +435,5 @@ int main(int argc, char *argv[])
     view.show();
     return app.exec();
 }
+
+#include "main.moc"

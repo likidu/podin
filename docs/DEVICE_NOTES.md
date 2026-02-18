@@ -3,113 +3,87 @@ Symbian Belle Device Notes
 
 Hardware: Nokia C7 (Belle FP2)
 
+## 2026-02-18 — Artwork Cache & Image Proxy
+
+### Problem
+Detail page artwork never displays. List page images (loaded directly via QML
+`Image.source`) work fine.
+
+### Root Causes (multiple, layered)
+
+1. **Missing guid/imageUrlHash in detail page params.**
+   `SubscriptionsPage.openPodcastDetail()` didn't pass `podcastGuid` or
+   `imageUrlHash` to `PodcastDetailPage`. The proxy URL condition failed,
+   falling back to the original full-size image URL (3000x3000, 3.5MB).
+
+2. **Wrong file extension from proxy URL.**
+   `extensionFromUrl()` parses the URL path for a dot. The proxy URL
+   (`/hash/.../feed/.../128`) has no extension, so it defaulted to `.jpg`.
+   But the proxy returns PNG. Qt on Symbian can't auto-detect format mismatch
+   — file saved as `cover.jpg` containing PNG data fails to decode.
+   Fix: read `Content-Type` response header to determine extension.
+
+3. **SSL errors killing downloads silently.**
+   `ArtworkCacheManager` used its own plain `QNetworkAccessManager`. QML images
+   work because they go through `SslIgnoringNam` (auto-ignores SSL errors via
+   `createRequest` override). The cache manager's `onSslErrors` slot fired too
+   late. Fix: connect `ignoreSslErrors()` directly on the reply, same pattern
+   as `SslIgnoringNam`.
+
+4. **Cleanup loop deleting the temp file before rename.**
+   The "remove old cover files" loop matched ALL files starting with `cover`,
+   including the `.part` temp file just written. `QFile::rename()` then failed
+   because the source was deleted. Fix: skip the temp file in the cleanup loop.
+
+5. **Raw file paths instead of file:// URLs.**
+   `artworkCached` signal emitted raw paths (`E:/Podin/.../cover.png`) but QML
+   `Image.source` requires `file:///` URLs. Needed `QUrl::fromLocalFile()`.
+
+6. **findCachedFile matching .part files.**
+   Leftover `.part` files from failed downloads were returned as valid cache
+   hits, preventing re-download. Fix: skip `.part` in `findCachedFile`.
+
+### Key Lessons
+- QML `Image.source` loaded via `QDeclarativeNetworkAccessManagerFactory` gets
+  SSL error handling for free; C++ `QNetworkAccessManager` instances do not.
+  Always connect `ignoreSslErrors()` on replies for Symbian HTTPS.
+- Never guess file extension from URL — use `Content-Type` header.
+- When cleaning up old files before rename, exclude the source temp file.
+- Always emit `file:///` URLs (via `QUrl::fromLocalFile()`) for QML images.
+
+
 ## 2026-02-17 — Audio Seeking — KErrMMAudioDevice (-12014)
 
 ### Problem
-Forward/back (skip) buttons do nothing on the device. The root cause is that
-QtMultimediaKit 1.1's `Audio` QML element has **no `seek()` method**. The
-Qt Mobility 1.1 docs confirm that seeking is done by writing the `position`
-property directly (`audio.position = newMs`).
+Writing `position` property on QML Audio element causes KErrMMAudioDevice
+(-12014), bricking ALL audio until phone restart. MMF is a shared OS service
+with no graceful recovery.
 
-The current code calls `_impl.seek(positionMs)` which silently does nothing
-because the guard `if (_impl && _impl.seek)` evaluates to false — `_impl.seek`
-is `undefined`.
+### Key Facts
+- Error -12014 is Symbian MMF, not Qt. Corrupts audio device at OS level.
+- QML property bindings may trigger writes at unexpected state transitions.
+- Even guarding to `playingState`/`pausedState` didn't prevent it.
 
-### Failed Attempt: Writing `_impl.position` from QML
-Replacing `_impl.seek(positionMs)` with `_impl.position = positionMs` causes
-**KErrMMAudioDevice (-12014)**: "Cannot open audio device, or lost control of
-audio device."
-
-This happens because writing `position` on the Symbian MMF backend during
-media status transitions (loading, buffering, loaded) causes the backend to
-lose control of the audio device entirely. The error persists even with guards
-that only write position during `playingState` or `pausedState`. The device
-requires a full restart to recover from this error.
-
-Key observations:
-- The error code -12014 is a Symbian MMF error, not a Qt error.
-- Once triggered, the audio device stays broken until phone restart.
-- Even guarding the position write to only `playingState`/`pausedState` did
-  not prevent the error — suggesting the QML property binding mechanism itself
-  may trigger writes at unexpected times, or the MMF state machine transitions
-  are not fully reflected in the QML-visible `state` property.
-- The `onStatusChanged` handler in PlaybackController calls `audio.seek()`
-  during status transitions for resume-position — when seek was a no-op this
-  was harmless, but with a real position write it became destructive.
-
-### Why a phone restart is required after the error
-KErrMMAudioDevice (-12014) corrupts the Symbian MMF audio device state at the
-OS level. MMF is a shared system service — once the audio device handle is
-invalidated, no app can reclaim it. Symbian has no graceful recovery path;
-the MMF service only reinitializes on boot. This means any bad audio API call
-bricks ALL audio on the phone until restart.
-
-### Resolution: C++ AudioEngine (src/AudioEngine.h/.cpp)
-Replaced the QML AudioFacade with a C++ class wrapping QMediaPlayer directly.
-Seeking uses `QMediaPlayer::setPosition()` from C++ with state guards:
-- Only seeks when player state is PlayingState or PausedState (audio device acquired)
-- Defers seek to m_pendingSeek if not ready, applied on state transition
-- This avoids the KErrMMAudioDevice crash entirely
-- Forward/back buttons now work correctly on device
-
-### References
-- Qt Mobility 1.1 Audio docs: https://qt.developpez.com/doc/qtmobility-1.1/qml-audio
-  (position is read-write, no seek() method exists)
-- Symbian error codes: KErrMMAudioDevice = -12014
-  (https://www.cnblogs.com/jason-jiang/archive/2006/11/01/547041.html)
+### Resolution
+C++ `AudioEngine` wrapping `QMediaPlayer::setPosition()` with state guards.
+Defers seek via `m_pendingSeek` if not ready. Works correctly on device.
 
 
 ## 2026-02-17 — SQLite Persistence on Self-Signed SIS
 
 ### Problem
-SQLite database falls back to in-memory (`:memory:`) on self-signed SIS
-deployments. Subscriptions are lost on app restart.
+Database falls back to `:memory:` — subscriptions lost on restart.
 
-The `dbPath()` method tries several candidate directories but none pass the
-write test:
-- `QDesktopServices::storageLocation(DataLocation)` — resolves to a path under
-  `/private/` but `QDir::exists()` returns false due to data caging
-- `QCoreApplication::applicationDirPath()` — same issue
-- `C:/data/Podin` — requires AllFiles capability (not available self-signed)
-- `E:/data/Podin` — no memory card inserted
-- `QDir::tempPath()` — fails SQLite write test
+### Root Causes
+1. **Data caging**: `/private/<UID>/` dirs writable but invisible to
+   `QDir::exists()`. Code skipped them before testing SQLite.
+2. **Driver mismatch**: Test used `QSQLITE`, production used `QSYMSQL`.
+3. **Path separators**: Forward slashes failed with QSYMSQL.
 
-### Root Cause: Three bugs in dbPath()
-
-1. **Data caging hides private directories from QDir::exists().**
-   On Symbian, `/private/<UID>/` is invisible to filesystem queries but IS
-   writable by the owning app. `QDir::exists()` returns false, and `mkpath()`
-   fails because `/private/` parent is system-owned. The code then skips the
-   candidate via `continue` before ever testing SQLite.
-
-2. **SQL driver mismatch between test and production.**
-   The test used hardcoded `QSQLITE` driver, but `initDb()` prefers `QSYMSQL`
-   (Symbian's native SQLite driver) when available. QSYMSQL uses a different
-   database name format (`[UID]dbname`). A path that works with QSQLITE might
-   fail with QSYMSQL or vice versa.
-
-3. **Path separator issues.**
-   Symbian expects backslash separators in some contexts. Using forward slashes
-   from `QDir::filePath()` without `QDir::toNativeSeparators()` could cause
-   the SQL driver to fail to open the file.
-
-### Fix (src/StorageManager.cpp — dbPath())
-
-1. **Skip exists()/mkpath() for /private/ paths.** Detect paths containing
-   `/private/` and go straight to the SQLite write test instead of checking
-   `QDir::exists()` or calling `mkpath()`.
-
-2. **Use same SQL driver for test as initDb().** Detect whether QSYMSQL is
-   available and use it for the write test, matching what `initDb()` will use.
-
-3. **Use QDir::toNativeSeparators() on all paths.** Ensures consistent path
-   format for the SQL driver.
-
-### Result
-Database now persists in the app's private directory. Subscriptions survive
-app restarts on self-signed SIS deployments.
+### Fix
+Skip `exists()`/`mkpath()` for `/private/` paths, go straight to SQLite write
+test. Use same driver for test as production. Use `toNativeSeparators()`.
 
 ### Key Lesson
-On Symbian, data-caged directories (`/private/<UID>/`) are writable but
-invisible. Never rely on `QDir::exists()` or `mkpath()` for these paths —
-go straight to the actual I/O operation (e.g., SQLite open + write test).
+On Symbian, data-caged directories are writable but invisible. Never rely on
+`QDir::exists()` — go straight to I/O test.

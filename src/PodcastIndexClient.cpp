@@ -364,6 +364,9 @@ QVariantList PodcastIndexClient::parseFeedList(const QVariant &root) const
         const QString guid = pickString(feed, "podcastGuid", "guid");
         const QString title = pickString(feed, "title");
         const QString image = pickString(feed, "image");
+        const QVariant imageUrlHashRaw = pickValue(feed, "imageUrlHash");
+        const QString imageUrlHash = imageUrlHashRaw.isValid() && !imageUrlHashRaw.isNull()
+            ? QString::number(imageUrlHashRaw.toLongLong()) : QString();
         const QString description = trimText(pickString(feed, "description"), 240);
 
         QVariantMap entry;
@@ -371,6 +374,7 @@ QVariantList PodcastIndexClient::parseFeedList(const QVariant &root) const
         entry.insert(QString::fromLatin1("guid"), guid);
         entry.insert(QString::fromLatin1("title"), title);
         entry.insert(QString::fromLatin1("image"), image);
+        entry.insert(QString::fromLatin1("imageUrlHash"), imageUrlHash);
         entry.insert(QString::fromLatin1("description"), description);
         results.append(entry);
     }
@@ -422,6 +426,9 @@ QVariantMap PodcastIndexClient::parsePodcastDetail(const QVariant &root) const
     const QString title = pickString(feed, "title");
     const QString description = trimText(pickString(feed, "description"), 1200);
     const QString image = pickString(feed, "image");
+    const QVariant imageUrlHashRaw = pickValue(feed, "imageUrlHash");
+    const QString imageUrlHash = imageUrlHashRaw.isValid() && !imageUrlHashRaw.isNull()
+        ? QString::number(imageUrlHashRaw.toLongLong()) : QString();
     const QString author = pickString(feed, "author", "ownerName");
     const QString url = pickString(feed, "url", "link");
 
@@ -431,6 +438,7 @@ QVariantMap PodcastIndexClient::parsePodcastDetail(const QVariant &root) const
     entry.insert(QString::fromLatin1("title"), title);
     entry.insert(QString::fromLatin1("description"), description);
     entry.insert(QString::fromLatin1("image"), image);
+    entry.insert(QString::fromLatin1("imageUrlHash"), imageUrlHash);
     entry.insert(QString::fromLatin1("author"), author);
     entry.insert(QString::fromLatin1("url"), url);
 

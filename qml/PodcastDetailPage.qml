@@ -19,6 +19,7 @@ Page {
     property bool subscribed: false
     property string cachedArtworkPath: ""
 
+    property string imageUrlHash: ""
     property bool hasArtwork: storage && storage.enableArtworkLoading &&
                               cachedArtworkPath && cachedArtworkPath.length > 0
     property string storageError: ""
@@ -60,6 +61,8 @@ Page {
         page.podcastTitle = detail.title ? detail.title : page.podcastTitle;
         page.podcastDescription = detail.description ? detail.description : page.podcastDescription;
         page.podcastImage = detail.image ? detail.image : page.podcastImage;
+        page.imageUrlHash = (detail.imageUrlHash && detail.imageUrlHash.length > 0)
+            ? detail.imageUrlHash : page.imageUrlHash;
         page.podcastAuthor = detail.author ? detail.author : page.podcastAuthor;
         page.podcastUrl = detail.url ? detail.url : page.podcastUrl;
         page.resolveArtwork();
@@ -79,8 +82,15 @@ Page {
             return;
         }
         page.cachedArtworkPath = "";
-        if (page.podcastImage && page.podcastImage.toString().length > 0) {
-            artworkCache.requestArtwork(page.feedId, page.podcastTitle, page.podcastImage.toString());
+        var artworkUrl = "";
+        if (page.podcastGuid.length > 0 && page.imageUrlHash.length > 0) {
+            artworkUrl = "https://podcastimage.liya.design/hash/"
+                + page.imageUrlHash + "/feed/" + page.podcastGuid + "/128";
+        } else if (page.podcastImage && page.podcastImage.toString().length > 0) {
+            artworkUrl = page.podcastImage.toString();
+        }
+        if (artworkUrl.length > 0) {
+            artworkCache.requestArtwork(page.feedId, page.podcastTitle, artworkUrl);
         }
     }
 
@@ -147,6 +157,7 @@ Page {
                 anchors.horizontalCenter: parent.horizontalCenter
 
                 Image {
+                    id: artworkImage
                     anchors.fill: parent
                     anchors.margins: 6
                     source: page.cachedArtworkPath.length > 0 ? page.cachedArtworkPath : ""
@@ -157,6 +168,11 @@ Page {
                     visible: page.hasArtwork
                     sourceSize.width: 128
                     sourceSize.height: 128
+                    onStatusChanged: {
+                        console.log("Image status: " + status
+                            + " (0=Null,1=Ready,2=Loading,3=Error)"
+                            + " source=" + source);
+                    }
                 }
 
                 Text {
@@ -250,7 +266,8 @@ Page {
                     if (page.subscribed) {
                         storage.unsubscribe(page.feedId);
                     } else {
-                        storage.subscribe(page.feedId, page.podcastTitle, page.podcastImage.toString());
+                        storage.subscribe(page.feedId, page.podcastTitle, page.podcastImage.toString(),
+                                          page.podcastGuid, page.imageUrlHash);
                     }
                     page.storageError = storage.lastError ? storage.lastError : "";
                     page.refreshSubscriptionState();
@@ -315,6 +332,33 @@ Page {
                 text: "Feed ID: " + page.feedId + " | Subscribed: " + (page.subscribed ? "YES" : "NO")
                 color: "#b7c4e0"
                 font.pixelSize: 14
+            }
+
+            Text {
+                width: parent.width
+                text: "GUID: " + (page.podcastGuid ? page.podcastGuid : "(empty)")
+                color: "#b7c4e0"
+                font.pixelSize: 14
+                wrapMode: Text.WrapAnywhere
+            }
+
+            Text {
+                width: parent.width
+                text: "ImgHash: " + (page.imageUrlHash ? page.imageUrlHash : "(empty)")
+                color: "#b7c4e0"
+                font.pixelSize: 14
+            }
+
+            Text {
+                width: parent.width
+                text: "Artwork: " + (page.cachedArtworkPath ? page.cachedArtworkPath : "(none)")
+                      + "\nImg status: " + artworkImage.status
+                      + " | size: " + artworkImage.implicitWidth + "x" + artworkImage.implicitHeight
+                      + " | painted: " + artworkImage.paintedWidth + "x" + artworkImage.paintedHeight
+                      + "\nFile: " + (artworkCache.lastDebugInfo ? artworkCache.lastDebugInfo : "(no download yet)")
+                color: "#b7c4e0"
+                font.pixelSize: 14
+                wrapMode: Text.WrapAnywhere
             }
 
             Text {
@@ -395,6 +439,12 @@ Page {
         onArtworkCached: {
             if (feedId === page.feedId) {
                 page.cachedArtworkPath = path;
+            }
+        }
+        onArtworkFailed: {
+            if (feedId === page.feedId) {
+                console.log("Artwork FAILED for feedId=" + feedId + ": " + message);
+                page.storageError = "Artwork: " + message;
             }
         }
     }

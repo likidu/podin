@@ -1,5 +1,7 @@
 #include "StorageManager.h"
 
+#include "AppConfig.h"
+
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDateTime>
 #include <QtCore/QDir>
@@ -98,7 +100,7 @@ void StorageManager::refreshSubscriptions()
 
     QSqlDatabase db = QSqlDatabase::database(QLatin1String(kConnectionName));
     QSqlQuery query(db);
-    if (!query.exec(QLatin1String("SELECT feed_id, title, image, last_updated FROM subscriptions ORDER BY title ASC"))) {
+    if (!query.exec(QLatin1String("SELECT feed_id, title, image, last_updated, guid, image_url_hash FROM subscriptions ORDER BY title ASC"))) {
         logError("load subscriptions", query.lastError());
         return;
     }
@@ -110,6 +112,8 @@ void StorageManager::refreshSubscriptions()
         entry.insert(QString::fromLatin1("title"), query.value(1));
         entry.insert(QString::fromLatin1("image"), query.value(2));
         entry.insert(QString::fromLatin1("lastUpdated"), query.value(3));
+        entry.insert(QString::fromLatin1("guid"), query.value(4));
+        entry.insert(QString::fromLatin1("imageUrlHash"), query.value(5));
         results.append(entry);
     }
 
@@ -127,7 +131,8 @@ bool StorageManager::isSubscribed(int feedId) const
     return false;
 }
 
-void StorageManager::subscribe(int feedId, const QString &title, const QString &image)
+void StorageManager::subscribe(int feedId, const QString &title, const QString &image,
+                               const QString &guid, const QString &imageUrlHash)
 {
     setLastError(QString());
     if (feedId <= 0) {
@@ -141,12 +146,14 @@ void StorageManager::subscribe(int feedId, const QString &title, const QString &
 
     QSqlDatabase db = QSqlDatabase::database(QLatin1String(kConnectionName));
     QSqlQuery query(db);
-    query.prepare(QLatin1String("INSERT OR REPLACE INTO subscriptions (feed_id, title, image, last_updated) "
-                                "VALUES (?, ?, ?, ?)"));
+    query.prepare(QLatin1String("INSERT OR REPLACE INTO subscriptions (feed_id, title, image, last_updated, guid, image_url_hash) "
+                                "VALUES (?, ?, ?, ?, ?, ?)"));
     query.addBindValue(feedId);
     query.addBindValue(title);
     query.addBindValue(image);
     query.addBindValue(static_cast<int>(QDateTime::currentDateTimeUtc().toTime_t()));
+    query.addBindValue(guid);
+    query.addBindValue(imageUrlHash);
 
     if (!query.exec()) {
         logError("subscribe", query.lastError());
@@ -295,11 +302,11 @@ QString StorageManager::dbPath()
     }
     m_dbPathLog += QString::fromLatin1("AppDirPath: %1\n").arg(appPrivate.isEmpty() ? QLatin1String("(empty)") : appPrivate);
 
-    // 3. Try C:\data\Podin (requires WriteUserData capability - won't work self-signed)
-    candidates << QLatin1String("C:/data/Podin");
+    // 3. Try C:\Data\Podin (requires WriteUserData capability - won't work self-signed)
+    candidates << QLatin1String(AppConfig::kPhoneBase);
 
-    // 4. Try E:\data\Podin (memory card - might work)
-    candidates << QLatin1String("E:/data/Podin");
+    // 4. Try E:\Podin (memory card - might work)
+    candidates << QLatin1String(AppConfig::kMemoryCardBase);
 
     // 5. Try temp location as last resort
     QString tempPath = QDir::tempPath();
@@ -477,9 +484,15 @@ void StorageManager::initDb()
                                   "feed_id INTEGER PRIMARY KEY, "
                                   "title TEXT NOT NULL, "
                                   "image TEXT, "
-                                  "last_updated INTEGER)"))) {
+                                  "last_updated INTEGER, "
+                                  "guid TEXT, "
+                                  "image_url_hash TEXT)"))) {
         logError("create subscriptions table", query.lastError());
     }
+
+    // Migration: add guid and image_url_hash columns if missing
+    query.exec(QLatin1String("ALTER TABLE subscriptions ADD COLUMN guid TEXT"));
+    query.exec(QLatin1String("ALTER TABLE subscriptions ADD COLUMN image_url_hash TEXT"));
 
     if (!query.exec(QLatin1String("CREATE TABLE IF NOT EXISTS episodes ("
                                   "episode_id TEXT PRIMARY KEY, "
@@ -550,7 +563,7 @@ void StorageManager::loadSettings()
     }
     m_forwardSkipSeconds = readSetting(QString::fromLatin1("forward_skip_seconds"), 30);
     m_backwardSkipSeconds = readSetting(QString::fromLatin1("backward_skip_seconds"), 15);
-    m_enableArtworkLoading = readSetting(QString::fromLatin1("enable_artwork_loading"), 0) != 0;
+    m_enableArtworkLoading = readSetting(QString::fromLatin1("enable_artwork_loading"), 1) != 0;
 }
 
 void StorageManager::saveSetting(const QString &key, int value)

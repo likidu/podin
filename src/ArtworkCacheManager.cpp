@@ -7,7 +7,9 @@
 #include <QtCore/QUrl>
 #include <QtGui/QDesktopServices>
 #include <QtNetwork/QNetworkRequest>
+#include <QtNetwork/QSslError>
 
+#include "AppConfig.h"
 #include "PodcastIndexConfig.h"
 
 namespace {
@@ -98,6 +100,10 @@ void ArtworkCacheManager::requestArtwork(int feedId, const QString &title, const
     request.setRawHeader("Accept", "image/*");
 
     QNetworkReply *reply = m_nam->get(request);
+    // Auto-ignore SSL errors (Symbian TLS compatibility)
+    connect(reply, SIGNAL(sslErrors(const QList<QSslError> &)),
+            reply, SLOT(ignoreSslErrors()));
+
     DownloadJob job;
     job.feedId = feedId;
     job.finalPath = finalPath;
@@ -154,12 +160,44 @@ void ArtworkCacheManager::onReplyFinished()
 
     const bool success = (reply->error() == QNetworkReply::NoError);
     if (success) {
-        QFile::remove(job.finalPath);
-        if (!QFile::rename(job.tempPath, job.finalPath)) {
+        // Determine correct extension from Content-Type header
+        const QString contentType = reply->header(QNetworkRequest::ContentTypeHeader).toString().toLower();
+        QString correctExt;
+        if (contentType.contains(QLatin1String("png"))) {
+            correctExt = QLatin1String("png");
+        } else if (contentType.contains(QLatin1String("gif"))) {
+            correctExt = QLatin1String("gif");
+        } else {
+            correctExt = QLatin1String("jpg");
+        }
+
+        // Rebuild final path with correct extension
+        QString finalPath = job.finalPath;
+        int dot = finalPath.lastIndexOf(QLatin1Char('.'));
+        if (dot != -1) {
+            finalPath = finalPath.left(dot + 1) + correctExt;
+        }
+
+        // Remove any old cover files with different extensions, but keep the .part temp file
+        QDir folder(QFileInfo(finalPath).absolutePath());
+        const QString tempName = QFileInfo(job.tempPath).fileName();
+        const QStringList oldCovers = folder.entryList(QDir::Files);
+        for (int i = 0; i < oldCovers.size(); ++i) {
+            if (oldCovers.at(i).startsWith(QLatin1String(kCoverBaseName))
+                && oldCovers.at(i) != tempName) {
+                folder.remove(oldCovers.at(i));
+            }
+        }
+
+        if (!QFile::rename(job.tempPath, finalPath)) {
             QFile::remove(job.tempPath);
             emit artworkFailed(job.feedId, QString::fromLatin1("Failed to save artwork."));
         } else {
-            emit artworkCached(job.feedId, QUrl::fromLocalFile(job.finalPath).toString());
+            m_lastDebugInfo = QString::fromLatin1("saved=%1 size=%2")
+                .arg(QFileInfo(finalPath).fileName())
+                .arg(QFileInfo(finalPath).size());
+            emit lastDebugInfoChanged();
+            emit artworkCached(job.feedId, QUrl::fromLocalFile(finalPath).toString());
         }
     } else {
         QFile::remove(job.tempPath);
@@ -176,7 +214,7 @@ QString ArtworkCacheManager::baseCacheDir() const
 {
     QString base;
     if (QDir(QString::fromLatin1("E:/")).exists()) {
-        base = QString::fromLatin1("E:/Podcast");
+        base = QString::fromLatin1(AppConfig::kMemoryCardBase);
     } else {
         QString fallback = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
         if (fallback.isEmpty()) {
@@ -274,7 +312,8 @@ QString ArtworkCacheManager::findCachedFile(const QString &folderPath) const
     QDateTime bestTime;
     for (int i = 0; i < entries.size(); ++i) {
         const QString name = entries.at(i);
-        if (!name.startsWith(QLatin1String(kCoverBaseName))) {
+        if (!name.startsWith(QLatin1String(kCoverBaseName))
+            || name.endsWith(QLatin1String(".part"))) {
             continue;
         }
         const QString fullPath = dir.filePath(name);
@@ -295,7 +334,7 @@ QString ArtworkCacheManager::extensionFromUrl(const QUrl &url) const
     QString path = url.path();
     int dot = path.lastIndexOf(QLatin1Char('.'));
     if (dot == -1) {
-        return QString();
+        return QLatin1String("jpg");
     }
     QString ext = path.mid(dot + 1).toLower();
     if (ext.size() > 5) {

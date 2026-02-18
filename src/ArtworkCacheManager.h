@@ -15,6 +15,7 @@ class QUrl;
 class ArtworkCacheManager : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(QString lastDebugInfo READ lastDebugInfo NOTIFY lastDebugInfoChanged)
 
 public:
     explicit ArtworkCacheManager(QObject *parent = 0);
@@ -22,14 +23,16 @@ public:
     Q_INVOKABLE QString cachedArtworkPath(int feedId, const QString &title);
     Q_INVOKABLE void requestArtwork(int feedId, const QString &title, const QString &remoteUrl);
 
+    QString lastDebugInfo() const { return m_lastDebugInfo; }
+
 signals:
     void artworkCached(int feedId, const QString &path);
     void artworkFailed(int feedId, const QString &message);
+    void lastDebugInfoChanged();
 
 private slots:
     void onReplyReadyRead();
     void onReplyFinished();
-
 private:
     struct DownloadJob {
         int feedId;
@@ -52,6 +55,7 @@ private:
     QNetworkAccessManager *m_nam;
     QHash<QNetworkReply*, DownloadJob> m_jobs;
     QSet<int> m_inFlight;
+    QString m_lastDebugInfo;
 };
 
 #endif // ARTWORKCACHEMANAGER_H

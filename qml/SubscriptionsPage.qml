@@ -9,7 +9,15 @@ Page {
     property bool hasLoaded: false
     property QtObject playback: null
 
-    function openPodcastDetail(feedId, title, image) {
+    function proxyImageUrl(item) {
+        if (item.guid && item.imageUrlHash) {
+            return "https://podcastimage.liya.design/hash/"
+                + item.imageUrlHash + "/feed/" + item.guid + "/32";
+        }
+        return item.image ? item.image : "";
+    }
+
+    function openPodcastDetail(feedId, title, image, guid, imageUrlHash) {
         if (!pageStack) {
             return;
         }
@@ -17,6 +25,8 @@ Page {
             feedId: feedId,
             podcastTitle: title,
             podcastImage: image ? image : "",
+            podcastGuid: guid ? guid : "",
+            imageUrlHash: imageUrlHash ? imageUrlHash : "",
             tools: page.tools,
             playback: page.playback
         };
@@ -93,14 +103,14 @@ Page {
                         Image {
                             anchors.fill: parent
                             anchors.margins: 2
-                            source: storage && storage.enableArtworkLoading ? modelData.image : ""
+                            source: storage && storage.enableArtworkLoading ? page.proxyImageUrl(modelData) : ""
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             asynchronous: true
                             cache: false
                             sourceSize.width: 44
                             sourceSize.height: 44
-                            visible: storage && storage.enableArtworkLoading && modelData.image && modelData.image.length > 0
+                            visible: storage && storage.enableArtworkLoading && source.toString().length > 0
                         }
                     }
 
@@ -137,7 +147,7 @@ Page {
 
             MouseArea {
                 anchors.fill: contentArea
-                onClicked: page.openPodcastDetail(modelData.feedId, modelData.title, modelData.image)
+                onClicked: page.openPodcastDetail(modelData.feedId, modelData.title, modelData.image, modelData.guid, modelData.imageUrlHash)
             }
         }
     }

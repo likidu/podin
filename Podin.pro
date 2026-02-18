@@ -56,7 +56,7 @@ HEADERS += \
     src/PodcastIndexConfig.h \
     src/StreamUrlResolver.h \
     src/TlsChecker.h \
-    src/ApiConfig.h \
+    src/AppConfig.h \
     src/StorageManager.h \
     src/AudioEngine.h
 

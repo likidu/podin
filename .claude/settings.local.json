@@ -17,7 +17,9 @@
       "WebFetch(domain:qt.developpez.com)",
       "WebFetch(domain:www.cnblogs.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:forum.qt.io)"
+      "WebFetch(domain:forum.qt.io)",
+      "WebFetch(domain:podcastindex-org.github.io)",
+      "WebFetch(domain:podcastimage.liya.design)"
     ]
   }
 }

@@ -35,7 +35,8 @@ public:
 
     Q_INVOKABLE void refreshSubscriptions();
     Q_INVOKABLE bool isSubscribed(int feedId) const;
-    Q_INVOKABLE void subscribe(int feedId, const QString &title, const QString &image);
+    Q_INVOKABLE void subscribe(int feedId, const QString &title, const QString &image,
+                               const QString &guid = QString(), const QString &imageUrlHash = QString());
     Q_INVOKABLE void unsubscribe(int feedId);
 
     Q_INVOKABLE int loadEpisodePosition(const QString &episodeId) const;
