@@ -139,12 +139,15 @@ Page {
                 }
             }
 
-            Button {
+            ToolButton {
                 id: removeButton
-                width: 70
+                width: 32
+                height: 32
+                flat: true
+                iconSource: "qrc:/qml/gfx/icon-trash.svg"
                 anchors.right: parent.right
+                anchors.rightMargin: 4
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Remove")
                 onClicked: storage.unsubscribe(modelData.feedId)
             }
 

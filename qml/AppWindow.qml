@@ -76,12 +76,12 @@ PodinPageStackWindow {
         }
         ToolButton {
             flat: true
-            iconSource: "toolbar-settings"
+            iconSource: "qrc:/qml/gfx/icon-podcast.svg"
             onClicked: window.openSubscriptions()
         }
         ToolButton {
             flat: true
-            iconSource: "toolbar-next"
+            iconSource: "qrc:/qml/gfx/icon-gramophone.svg"
             onClicked: window.openPlayer()
         }
         ToolButton {
@@ -185,10 +185,22 @@ PodinPageStackWindow {
                 }
 
                 Button {
+                    id: tlsButton
                     width: parent.width
-                    text: tlsChecker.running ? qsTr("Testing TLS...") : qsTr("Test TLS 1.2")
+                    text: tlsChecker.running ? qsTr("   Testing TLS...") : qsTr("   Test TLS 1.2")
                     enabled: !tlsChecker.running
                     onClicked: window.runTlsCheck()
+
+                    Image {
+                        source: "qrc:/qml/gfx/icon-link.svg"
+                        width: 20
+                        height: 20
+                        smooth: true
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
+                        anchors.leftMargin: (parent.width - 150) / 2
+                        opacity: 0.8
+                    }
                 }
 
                 Text {

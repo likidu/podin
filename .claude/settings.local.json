@@ -19,7 +19,10 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:forum.qt.io)",
       "WebFetch(domain:podcastindex-org.github.io)",
-      "WebFetch(domain:podcastimage.liya.design)"
+      "WebFetch(domain:podcastimage.liya.design)",
+      "Bash(git -C \"C:/Users/liya/Repos/podin\" show fd591ae:qml/PlayerPage.qml)",
+      "Bash(git -C C:/Users/liya/Repos/podin log --oneline -3)",
+      "Bash(git -C C:/Users/liya/Repos/podin show fd591ae:qml/PlayerPage.qml)"
     ]
   }
 }

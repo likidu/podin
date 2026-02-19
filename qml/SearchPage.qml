@@ -186,25 +186,42 @@ Page {
                 monitor: memoryMonitor
             }
 
-            Row {
+            Item {
                 width: parent.width
-                spacing: 6
+                height: searchField.height
 
                 TextField {
                     id: searchField
-                    width: parent.width - clearButton.width - 6
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     text: qsTr("gcores")
-                    placeholderText: qsTr("Search podcasts")
+                    placeholderText: qsTr("    Search podcasts")
                     inputMethodHints: Qt.ImhNoPredictiveText
                     Keys.onReturnPressed: page.startSearch()
                 }
 
-                Button {
+                Image {
+                    id: searchIcon
+                    source: "qrc:/qml/gfx/icon-search.svg"
+                    width: 18
+                    height: 18
+                    smooth: true
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    opacity: 0.4
+                }
+
+                ToolButton {
                     id: clearButton
-                    width: 32
-                    height: searchField.height
-                    text: qsTr("x")
+                    width: 24
+                    height: 24
+                    iconSource: "qrc:/qml/gfx/icon-x.svg"
+                    flat: true
                     enabled: searchField.text.length > 0
+                    anchors.right: parent.right
+                    anchors.rightMargin: 4
+                    anchors.verticalCenter: parent.verticalCenter
                     onClicked: searchField.text = ""
                 }
             }
@@ -427,13 +444,14 @@ Page {
                     }
                 }
 
-                Button {
+                ToolButton {
                     id: historyDeleteBtn
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    width: 40
-                    height: 32
-                    text: qsTr("x")
+                    width: 28
+                    height: 28
+                    flat: true
+                    iconSource: "qrc:/qml/gfx/icon-x.svg"
                     onClicked: {
                         if (storage) {
                             storage.removeSearchHistory(modelData.term);

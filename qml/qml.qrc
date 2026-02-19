@@ -10,5 +10,11 @@
         <file>SettingsPage.qml</file>
         <file>AppWindow.qml</file>
         <file>PodinPageStackWindow.qml</file>
+        <file>gfx/icon-podcast.svg</file>
+        <file>gfx/icon-gramophone.svg</file>
+        <file>gfx/icon-search.svg</file>
+        <file>gfx/icon-x.svg</file>
+        <file>gfx/icon-trash.svg</file>
+        <file>gfx/icon-link.svg</file>
     </qresource>
 </RCC>

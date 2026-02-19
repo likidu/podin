@@ -167,11 +167,6 @@ Page {
                 elide: Text.ElideRight
             }
 
-            MemoryBar {
-                width: parent.width
-                monitor: memoryMonitor
-            }
-
             Text {
                 width: parent.width
                 text: playback && playback.podcastTitle.length > 0 ? playback.podcastTitle : ""
@@ -210,19 +205,19 @@ Page {
                 spacing: 6
 
                 Rectangle {
-                    id: bufferTrack
+                    id: progressTrack
                     width: parent.width
-                    height: 4
-                    radius: 2
-                    color: "#243149"
+                    height: 6
+                    radius: 3
+                    color: "#2d3a57"
 
                     Rectangle {
                         id: bufferFill
-                        height: bufferTrack.height
-                        radius: bufferTrack.radius
-                        color: "#4b5f86"
-                        anchors.left: bufferTrack.left
-                        anchors.verticalCenter: bufferTrack.verticalCenter
+                        height: progressTrack.height
+                        radius: progressTrack.radius
+                        color: "#3b4d6e"
+                        anchors.left: progressTrack.left
+                        anchors.verticalCenter: progressTrack.verticalCenter
                         width: {
                             if (!playback) {
                                 return 0;
@@ -233,7 +228,28 @@ Page {
                             } else if (progress > 1) {
                                 progress = 1;
                             }
-                            return Math.round(bufferTrack.width * progress);
+                            return Math.round(progressTrack.width * progress);
+                        }
+                    }
+
+                    Rectangle {
+                        id: progressFill
+                        height: progressTrack.height
+                        radius: progressTrack.radius
+                        color: "#5a7cff"
+                        anchors.left: progressTrack.left
+                        anchors.verticalCenter: progressTrack.verticalCenter
+                        width: {
+                            if (!playback || playback.duration <= 0) {
+                                return 0;
+                            }
+                            var ratio = seekSlider.value / playback.duration;
+                            if (ratio < 0) {
+                                ratio = 0;
+                            } else if (ratio > 1) {
+                                ratio = 1;
+                            }
+                            return Math.round(progressTrack.width * ratio);
                         }
                     }
                 }
@@ -250,6 +266,26 @@ Page {
                         if (!pressed) {
                             page.commitSeek();
                         }
+                    }
+                }
+
+                Row {
+                    width: parent.width
+
+                    Text {
+                        width: parent.width / 2
+                        text: formatDuration(seekSlider.value / 1000)
+                        color: "#9fb0d3"
+                        font.pixelSize: 12
+                        horizontalAlignment: Text.AlignLeft
+                    }
+
+                    Text {
+                        width: parent.width / 2
+                        text: playback && playback.duration > 0 ? formatDuration(playback.duration / 1000) : "0:00"
+                        color: "#9fb0d3"
+                        font.pixelSize: 12
+                        horizontalAlignment: Text.AlignRight
                     }
                 }
             }
@@ -425,20 +461,6 @@ Page {
                                   " feedId=" + playback.feedId) : "episode=N/A"
                 color: "#cccccc"
                 font.pixelSize: 13
-                wrapMode: Text.WrapAnywhere
-            }
-
-            // Memory info
-            Text {
-                width: parent.width
-                text: memoryMonitor ? ("Memory: " + Math.round(memoryMonitor.freeBytes / 1024 / 1024) + "MB free / " +
-                                       Math.round(memoryMonitor.totalBytes / 1024 / 1024) + "MB total (" +
-                                       memoryMonitor.usedPercent + "% used)" +
-                                       (memoryMonitor.isMemoryCritical ? " - CRITICAL!" : (memoryMonitor.isMemoryLow ? " - LOW" : "")))
-                      : "Memory: N/A"
-                color: memoryMonitor && memoryMonitor.isMemoryCritical ? "#ff4444" : (memoryMonitor && memoryMonitor.isMemoryLow ? "#ffaa44" : "#88ff88")
-                font.pixelSize: 14
-                font.bold: memoryMonitor && (memoryMonitor.isMemoryLow || memoryMonitor.isMemoryCritical)
                 wrapMode: Text.WrapAnywhere
             }
 
