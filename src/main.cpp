@@ -417,6 +417,11 @@ int main(int argc, char *argv[])
     QDeclarativeView view;
     view.rootContext()->setContextProperty("apiClient", &apiClient);
     view.rootContext()->setContextProperty("storage", &storage);
+#ifdef PODIN_DEBUG
+    view.rootContext()->setContextProperty("debugMode", QVariant(true));
+#else
+    view.rootContext()->setContextProperty("debugMode", QVariant(false));
+#endif
     view.rootContext()->setContextProperty("artworkCache", &artworkCache);
     view.rootContext()->setContextProperty("memoryMonitor", &memoryMonitor);
     view.rootContext()->setContextProperty("streamUrlResolver", &streamUrlResolver);

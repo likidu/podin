@@ -1,4 +1,5 @@
 #include "StreamUrlResolver.h"
+#include "AppConfig.h"
 #include <QDebug>
 
 StreamUrlResolver::StreamUrlResolver(QObject *parent)
@@ -94,7 +95,7 @@ void StreamUrlResolver::followRedirect(const QUrl &url)
     m_handledInMetaData = false;
 
     QNetworkRequest request(url);
-    request.setRawHeader("User-Agent", "Mozilla/5.0 (SymbianOS) Podin/1.0");
+    request.setRawHeader("User-Agent", QByteArray("Mozilla/5.0 (SymbianOS) Podin/") + AppConfig::kAppVersion);
     // Some servers don't handle HEAD well, use GET but we'll abort after headers
     m_reply = m_nam->get(request);
     connect(m_reply, SIGNAL(finished()), this, SLOT(onFinished()));

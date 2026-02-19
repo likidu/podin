@@ -1,4 +1,5 @@
 #include "TlsChecker.h"
+#include "AppConfig.h"
 
 #include <QtCore/QTextStream>
 #include <QtCore/QUrl>
@@ -65,7 +66,7 @@ void TlsChecker::startCheck()
 
     const QUrl url(QString::fromLatin1("https://tls-v1-2.badssl.com:1012/"));
     QNetworkRequest req(url);
-    req.setRawHeader("User-Agent", "Podin/1.0");
+    req.setRawHeader("User-Agent", QByteArray("Podin/") + AppConfig::kAppVersion);
 
     if (!m_nam) {
         m_nam = new QNetworkAccessManager(this);

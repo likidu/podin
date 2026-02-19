@@ -336,7 +336,8 @@ void AudioEngine::onPlayerBufferStatusChanged(int percent)
 {
     // QMediaPlayer reports 0-100, AudioFacade used 0.0-1.0
     qreal newProgress = percent / 100.0;
-    if (!qFuzzyCompare(m_bufferProgress, newProgress)) {
+    // Only emit on 2%+ change to avoid flooding the QML event loop during long playback
+    if (qAbs(m_bufferProgress - newProgress) >= 0.02) {
         m_bufferProgress = newProgress;
         emit bufferProgressChanged();
     }

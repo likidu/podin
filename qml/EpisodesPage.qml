@@ -187,11 +187,6 @@ Page {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            MemoryBar {
-                width: parent.width
-                monitor: memoryMonitor
-            }
-
             BusyIndicator {
                 running: apiClient.busy
                 visible: apiClient.busy

@@ -39,11 +39,6 @@ Page {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            MemoryBar {
-                width: parent.width
-                monitor: memoryMonitor
-            }
-
             Column {
                 width: parent.width
                 spacing: 10

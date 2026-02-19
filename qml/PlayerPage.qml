@@ -362,103 +362,107 @@ Page {
                 wrapMode: Text.WordWrap
             }
 
-            // Debug section header
-            Rectangle {
+            // Debug section (hidden in release builds)
+            Column {
                 width: parent.width
-                height: 1
-                color: "#4b5f86"
-            }
+                spacing: parent.spacing
+                visible: debugMode
+                height: debugMode ? childrenRect.height : 0
 
-            Text {
-                width: parent.width
-                text: "Debug Info"
-                color: "#8899bb"
-                font.pixelSize: 14
-                font.bold: true
-            }
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: "#4b5f86"
+                }
 
-            // Debug info - all inline in the scrollable column
-            Text {
-                width: parent.width
-                text: playback ? ("pos=" + playback.position +
-                                  " / " + playback.duration +
-                                  " status=" + playback.status + " (" + backendStatusName(playback.status) + ")" +
-                                  " state=" + playback.state) : "player=N/A"
-                color: "#ffffff"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    text: "Debug Info"
+                    color: "#8899bb"
+                    font.pixelSize: 14
+                    font.bold: true
+                }
 
-            Text {
-                width: parent.width
-                text: playback ? ("seekable=" + playback.seekable +
-                                  " buffer=" + playback.bufferProgress.toFixed(2) +
-                                  " available=" + playback.available +
-                                  " tried=" + playback.triedUrls.length) : "seek=N/A"
-                color: "#ffd6d9"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    id: debugText
+                    width: parent.width
+                    text: "player=N/A"
+                    color: "#ffffff"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                property bool resolving: streamUrlResolver ? streamUrlResolver.resolving : false
-                property string resolverError: streamUrlResolver ? streamUrlResolver.errorString : ""
-                text: resolving ? "RESOLVER: Resolving redirects..."
-                      : (resolverError.length > 0 ? ("RESOLVER ERROR: " + resolverError)
-                      : "RESOLVER: Idle")
-                color: resolving ? "#ffff00" : (resolverError.length > 0 ? "#ff8888" : "#88ff88")
-                font.pixelSize: 14
-                font.bold: resolving
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    text: playback ? ("seekable=" + playback.seekable +
+                                      " buffer=" + playback.bufferProgress.toFixed(2) +
+                                      " available=" + playback.available +
+                                      " tried=" + playback.triedUrls.length) : "seek=N/A"
+                    color: "#ffd6d9"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                property string urlStr: playback && playback.originalUrl ? playback.originalUrl.toString() : ""
-                text: urlStr.length > 0 ? ("ORIGINAL: " + urlStr) : "ORIGINAL: (none)"
-                color: "#ffcc88"
-                font.pixelSize: 13
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    property bool resolving: streamUrlResolver ? streamUrlResolver.resolving : false
+                    property string resolverError: streamUrlResolver ? streamUrlResolver.errorString : ""
+                    text: resolving ? "RESOLVER: Resolving redirects..."
+                          : (resolverError.length > 0 ? ("RESOLVER ERROR: " + resolverError)
+                          : "RESOLVER: Idle")
+                    color: resolving ? "#ffff00" : (resolverError.length > 0 ? "#ff8888" : "#88ff88")
+                    font.pixelSize: 14
+                    font.bold: resolving
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                property string urlStr: playback && playback.streamUrl ? playback.streamUrl.toString() : ""
-                property string origUrlStr: playback && playback.originalUrl ? playback.originalUrl.toString() : ""
-                property string proto: urlStr.indexOf("https://") === 0 ? "HTTPS" : (urlStr.indexOf("http://") === 0 ? "HTTP" : "OTHER")
-                property bool isResolved: urlStr.length > 0 && origUrlStr.length > 0 && origUrlStr !== urlStr
-                text: urlStr.length > 0 ? ((isResolved ? "RESOLVED [" : "[") + proto + "] " + urlStr) : "PLAYING: (none)"
-                color: isResolved ? "#88ffcc" : "#aaccff"
-                font.pixelSize: 13
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    property string urlStr: playback && playback.originalUrl ? playback.originalUrl.toString() : ""
+                    text: urlStr.length > 0 ? ("ORIGINAL: " + urlStr) : "ORIGINAL: (none)"
+                    color: "#ffcc88"
+                    font.pixelSize: 13
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                text: playback && playback.enclosureType ? ("Type: " + playback.enclosureType) : "Type: (unknown)"
-                color: "#aaccff"
-                font.pixelSize: 13
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    property string urlStr: playback && playback.streamUrl ? playback.streamUrl.toString() : ""
+                    property string origUrlStr: playback && playback.originalUrl ? playback.originalUrl.toString() : ""
+                    property string proto: urlStr.indexOf("https://") === 0 ? "HTTPS" : (urlStr.indexOf("http://") === 0 ? "HTTP" : "OTHER")
+                    property bool isResolved: urlStr.length > 0 && origUrlStr.length > 0 && origUrlStr !== urlStr
+                    text: urlStr.length > 0 ? ((isResolved ? "RESOLVED [" : "[") + proto + "] " + urlStr) : "PLAYING: (none)"
+                    color: isResolved ? "#88ffcc" : "#aaccff"
+                    font.pixelSize: 13
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                text: playback && playback.errorString && playback.errorString.length > 0
-                      ? ("Error: " + playback.errorString)
-                      : "Error: (none)"
-                color: playback && playback.errorString && playback.errorString.length > 0 ? "#ff8888" : "#88ff88"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    text: playback && playback.enclosureType ? ("Type: " + playback.enclosureType) : "Type: (unknown)"
+                    color: "#aaccff"
+                    font.pixelSize: 13
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                text: playback ? ("epId=" + (playback.episodeId ? playback.episodeId : "none") +
-                                  " feedId=" + playback.feedId) : "episode=N/A"
-                color: "#cccccc"
-                font.pixelSize: 13
-                wrapMode: Text.WrapAnywhere
+                Text {
+                    width: parent.width
+                    text: playback && playback.errorString && playback.errorString.length > 0
+                          ? ("Error: " + playback.errorString)
+                          : "Error: (none)"
+                    color: playback && playback.errorString && playback.errorString.length > 0 ? "#ff8888" : "#88ff88"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
+
+                Text {
+                    width: parent.width
+                    text: playback ? ("epId=" + (playback.episodeId ? playback.episodeId : "none") +
+                                      " feedId=" + playback.feedId) : "episode=N/A"
+                    color: "#cccccc"
+                    font.pixelSize: 13
+                    wrapMode: Text.WrapAnywhere
+                }
             }
 
             // Add some padding at the bottom
@@ -474,10 +478,11 @@ Page {
             console.log("[DEBUG] player=N/A");
             return;
         }
-        console.log("[DEBUG] pos=" + playback.position +
-                    " / " + playback.duration +
-                    " status=" + playback.status + " (" + backendStatusName(playback.status) + ")" +
-                    " state=" + playback.state);
+        debugText.text = "pos=" + playback.position +
+                         " / " + playback.duration +
+                         " status=" + playback.status + " (" + backendStatusName(playback.status) + ")" +
+                         " state=" + playback.state;
+        console.log("[DEBUG] " + debugText.text);
         console.log("[DEBUG] seekable=" + playback.seekable +
                     " buffer=" + playback.bufferProgress.toFixed(2) +
                     " available=" + playback.available +
@@ -508,7 +513,6 @@ Page {
         target: playback
         onPositionChanged: {
             page.syncSeekSlider();
-            page.updateStatus("");
         }
         onDurationChanged: {
             page.syncSeekSlider();

@@ -181,55 +181,56 @@ Page {
                 horizontalAlignment: Text.AlignHCenter
             }
 
-            MemoryBar {
-                width: parent.width
-                monitor: memoryMonitor
-            }
-
             Item {
                 width: parent.width
-                height: searchField.height
+                height: 48
 
                 TextField {
                     id: searchField
                     anchors.left: parent.left
                     anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: 20
                     text: qsTr("gcores")
-                    placeholderText: qsTr("    Search podcasts")
+                    placeholderText: qsTr("     Search podcasts")
+                    platformLeftMargin: 32
+                    platformRightMargin: 36
                     inputMethodHints: Qt.ImhNoPredictiveText
                     Keys.onReturnPressed: page.startSearch()
                 }
 
                 Image {
                     id: searchIcon
-                    source: "qrc:/qml/gfx/icon-search.svg"
-                    width: 18
-                    height: 18
+                    source: "qrc:/qml/gfx/icon-search-dark.svg"
+                    width: 20
+                    height: 20
                     smooth: true
+                    sourceSize.width: 20
+                    sourceSize.height: 20
                     anchors.left: parent.left
                     anchors.leftMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    opacity: 0.4
+                    opacity: 0.6
                 }
 
                 Item {
                     id: clearButton
-                    width: 28
-                    height: 28
+                    width: 36
+                    height: 36
                     anchors.right: parent.right
-                    anchors.rightMargin: 4
+                    anchors.rightMargin: 2
                     anchors.verticalCenter: parent.verticalCenter
                     visible: searchField.text.length > 0
 
                     Image {
-                        width: 14
-                        height: 14
+                        width: 16
+                        height: 16
                         anchors.centerIn: parent
-                        source: "qrc:/qml/gfx/icon-x.svg"
-                        sourceSize.width: 14
-                        sourceSize.height: 14
+                        source: "qrc:/qml/gfx/icon-x-dark.svg"
+                        sourceSize.width: 16
+                        sourceSize.height: 16
                         smooth: true
-                        opacity: 0.6
+                        opacity: 0.8
                     }
 
                     MouseArea {
@@ -266,7 +267,7 @@ Page {
             Text {
                 width: parent.width
                 text: page.imageSizeSummary
-                visible: page.imageSizeCount > 0
+                visible: debugMode && page.imageSizeCount > 0
                 color: "#9fb0d3"
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
@@ -460,9 +461,10 @@ Page {
                 Item {
                     id: historyDeleteBtn
                     anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 28
-                    height: 28
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: 40
+                    z: 1
 
                     Image {
                         width: 14
@@ -478,9 +480,8 @@ Page {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            if (storage) {
-                                storage.removeSearchHistory(modelData.term);
-                            }
+                            var term = modelData.term;
+                            storage.removeSearchHistory(term);
                         }
                     }
                 }
@@ -526,6 +527,9 @@ Page {
             if (!storage.enableArtworkLoading) {
                 page.resetImageStats();
             }
+        }
+        onSearchHistoryChanged: {
+            historyList.model = storage.searchHistory;
         }
     }
 

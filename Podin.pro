@@ -1,5 +1,6 @@
 TEMPLATE = app
 TARGET = Podin
+VERSION = 0.2.0
 
 # Qt 4.x modules
 QT += core gui network declarative sql
@@ -8,8 +9,10 @@ MOBILITY += multimedia
 symbian:LIBS += -lhal
 
 CONFIG -= debug_and_release
-CONFIG += debug
-CONFIG(debug, debug|release) { CONFIG += console }
+CONFIG(debug, debug|release) {
+    CONFIG += console
+    DEFINES += PODIN_DEBUG
+}
 
 # Place all build artifacts inside build directory
 DESTDIR = $$OUT_PWD

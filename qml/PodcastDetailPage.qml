@@ -142,11 +142,6 @@ Page {
                 elide: Text.ElideRight
             }
 
-            MemoryBar {
-                width: parent.width
-                monitor: memoryMonitor
-            }
-
             Rectangle {
                 width: 140
                 height: 140
@@ -169,9 +164,11 @@ Page {
                     sourceSize.width: 128
                     sourceSize.height: 128
                     onStatusChanged: {
-                        console.log("Image status: " + status
-                            + " (0=Null,1=Ready,2=Loading,3=Error)"
-                            + " source=" + source);
+                        if (debugMode) {
+                            console.log("Image status: " + status
+                                + " (0=Null,1=Ready,2=Loading,3=Error)"
+                                + " source=" + source);
+                        }
                     }
                 }
 
@@ -274,100 +271,107 @@ Page {
                 }
             }
 
-            // Debug section
-            Rectangle {
+            // Debug section (hidden in release builds)
+            Column {
                 width: parent.width
-                height: 1
-                color: "#4b5f86"
-            }
+                spacing: parent.spacing
+                visible: debugMode
+                height: debugMode ? childrenRect.height : 0
 
-            Text {
-                width: parent.width
-                text: "Debug Info"
-                color: "#8899bb"
-                font.pixelSize: 14
-                font.bold: true
-            }
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: "#4b5f86"
+                }
 
-            Text {
-                width: parent.width
-                text: "Storage: " + (storage ? "available" : "NOT AVAILABLE")
-                color: storage ? "#88ff88" : "#ff8888"
-                font.pixelSize: 14
-            }
+                Text {
+                    width: parent.width
+                    text: "Debug Info"
+                    color: "#8899bb"
+                    font.pixelSize: 14
+                    font.bold: true
+                }
 
-            Text {
-                width: parent.width
-                text: "DB Path: " + (storage ? storage.dbPath : "N/A")
-                color: "#b7c4e0"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    text: "Storage: " + (storage ? "available" : "NOT AVAILABLE")
+                    color: storage ? "#88ff88" : "#ff8888"
+                    font.pixelSize: 14
+                }
 
-            Text {
-                width: parent.width
-                text: "DB Status: " + (storage ? storage.dbStatus : "N/A")
-                color: "#b7c4e0"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    text: "DB Path: " + (storage ? storage.dbPath : "N/A")
+                    color: "#b7c4e0"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                text: "Path Log:\n" + (storage ? storage.dbPathLog : "N/A")
-                color: "#aabbcc"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    text: "DB Status: " + (storage ? storage.dbStatus : "N/A")
+                    color: "#b7c4e0"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                text: "Subscriptions count: " + (storage && storage.subscriptions ? storage.subscriptions.length : 0)
-                color: "#b7c4e0"
-                font.pixelSize: 14
-            }
+                Text {
+                    width: parent.width
+                    text: "Path Log:\n" + (storage ? storage.dbPathLog : "N/A")
+                    color: "#aabbcc"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                text: "Feed ID: " + page.feedId + " | Subscribed: " + (page.subscribed ? "YES" : "NO")
-                color: "#b7c4e0"
-                font.pixelSize: 14
-            }
+                Text {
+                    width: parent.width
+                    text: "Subscriptions count: " + (storage && storage.subscriptions ? storage.subscriptions.length : 0)
+                    color: "#b7c4e0"
+                    font.pixelSize: 14
+                }
 
-            Text {
-                width: parent.width
-                text: "GUID: " + (page.podcastGuid ? page.podcastGuid : "(empty)")
-                color: "#b7c4e0"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    text: "Feed ID: " + page.feedId + " | Subscribed: " + (page.subscribed ? "YES" : "NO")
+                    color: "#b7c4e0"
+                    font.pixelSize: 14
+                }
 
-            Text {
-                width: parent.width
-                text: "ImgHash: " + (page.imageUrlHash ? page.imageUrlHash : "(empty)")
-                color: "#b7c4e0"
-                font.pixelSize: 14
-            }
+                Text {
+                    width: parent.width
+                    text: "GUID: " + (page.podcastGuid ? page.podcastGuid : "(empty)")
+                    color: "#b7c4e0"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
 
-            Text {
-                width: parent.width
-                text: "Artwork: " + (page.cachedArtworkPath ? page.cachedArtworkPath : "(none)")
-                      + "\nImg status: " + artworkImage.status
-                      + " | size: " + artworkImage.implicitWidth + "x" + artworkImage.implicitHeight
-                      + " | painted: " + artworkImage.paintedWidth + "x" + artworkImage.paintedHeight
-                      + "\nFile: " + (artworkCache.lastDebugInfo ? artworkCache.lastDebugInfo : "(no download yet)")
-                color: "#b7c4e0"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
-            }
+                Text {
+                    width: parent.width
+                    text: "ImgHash: " + (page.imageUrlHash ? page.imageUrlHash : "(empty)")
+                    color: "#b7c4e0"
+                    font.pixelSize: 14
+                }
 
-            Text {
-                width: parent.width
-                property string errText: storage && storage.lastError ? storage.lastError : ""
-                text: "Last Error: " + (errText.length > 0 ? errText : "(none)")
-                color: errText.length > 0 ? "#ff8888" : "#88ff88"
-                font.pixelSize: 14
-                wrapMode: Text.WrapAnywhere
+                Text {
+                    width: parent.width
+                    text: "Artwork: " + (page.cachedArtworkPath ? page.cachedArtworkPath : "(none)")
+                          + "\nImg status: " + artworkImage.status
+                          + " | size: " + artworkImage.implicitWidth + "x" + artworkImage.implicitHeight
+                          + " | painted: " + artworkImage.paintedWidth + "x" + artworkImage.paintedHeight
+                          + "\nFile: " + (artworkCache.lastDebugInfo ? artworkCache.lastDebugInfo : "(no download yet)")
+                    color: "#b7c4e0"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
+
+                Text {
+                    width: parent.width
+                    property string errText: storage && storage.lastError ? storage.lastError : ""
+                    text: "Last Error: " + (errText.length > 0 ? errText : "(none)")
+                    color: errText.length > 0 ? "#ff8888" : "#88ff88"
+                    font.pixelSize: 14
+                    wrapMode: Text.WrapAnywhere
+                }
             }
 
             Item {

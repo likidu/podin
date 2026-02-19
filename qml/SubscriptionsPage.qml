@@ -41,26 +41,37 @@ Page {
         }
     }
 
-    Column {
+    Item {
         id: header
+        z: 1
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.topMargin: 12
-        spacing: 8
+        height: headerTitle.height + 24
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#1a2236"
+            opacity: 0.95
+        }
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            anchors.bottom: parent.bottom
+            color: "#2d3a57"
+        }
 
         Text {
+            id: headerTitle
             width: parent.width
+            anchors.top: parent.top
+            anchors.topMargin: 12
             text: qsTr("Subscriptions")
             font.pixelSize: 20
             color: platformStyle.colorNormalLight
             elide: Text.ElideRight
             horizontalAlignment: Text.AlignHCenter
-        }
-
-        MemoryBar {
-            width: parent.width
-            monitor: memoryMonitor
         }
     }
 
@@ -70,7 +81,10 @@ Page {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.margins: 16
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.topMargin: 8
+        anchors.bottomMargin: 16
         spacing: 8
         model: storage.subscriptions
 
