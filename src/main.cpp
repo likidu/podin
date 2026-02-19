@@ -412,6 +412,7 @@ int main(int argc, char *argv[])
     StreamUrlResolver streamUrlResolver;
     TlsChecker tlsChecker;
     AudioEngine audioEngine;
+    audioEngine.setVolume(storage.volumePercent() / 100.0);
 
     QDeclarativeView view;
     view.rootContext()->setContextProperty("apiClient", &apiClient);

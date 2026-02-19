@@ -33,6 +33,7 @@ StorageManager::StorageManager(QObject *parent)
     , m_forwardSkipSeconds(30)
     , m_backwardSkipSeconds(15)
     , m_enableArtworkLoading(false)
+    , m_volumePercent(50)
     , m_dbStatus(QLatin1String("not initialized"))
 {
     initDb();
@@ -58,6 +59,11 @@ int StorageManager::backwardSkipSeconds() const
 bool StorageManager::enableArtworkLoading() const
 {
     return m_enableArtworkLoading;
+}
+
+int StorageManager::volumePercent() const
+{
+    return m_volumePercent;
 }
 
 void StorageManager::setForwardSkipSeconds(int seconds)
@@ -90,6 +96,17 @@ void StorageManager::setEnableArtworkLoading(bool enabled)
     m_enableArtworkLoading = enabled;
     saveSetting(QString::fromLatin1("enable_artwork_loading"), m_enableArtworkLoading ? 1 : 0);
     emit enableArtworkLoadingChanged();
+}
+
+void StorageManager::setVolumePercent(int percent)
+{
+    int clamped = qBound(0, percent, 100);
+    if (clamped == m_volumePercent) {
+        return;
+    }
+    m_volumePercent = clamped;
+    saveSetting(QString::fromLatin1("volume_percent"), m_volumePercent);
+    emit volumePercentChanged();
 }
 
 void StorageManager::refreshSubscriptions()
@@ -529,6 +546,10 @@ void StorageManager::initDb()
                                   "VALUES ('enable_artwork_loading', 0)"))) {
         logError("seed artwork loading setting", query.lastError());
     }
+    if (!query.exec(QLatin1String("INSERT OR IGNORE INTO settings (key, value) "
+                                  "VALUES ('volume_percent', 50)"))) {
+        logError("seed volume percent setting", query.lastError());
+    }
 
     QSqlQuery pragma(db);
     bool havePlayState = false;
@@ -564,6 +585,7 @@ void StorageManager::loadSettings()
     m_forwardSkipSeconds = readSetting(QString::fromLatin1("forward_skip_seconds"), 30);
     m_backwardSkipSeconds = readSetting(QString::fromLatin1("backward_skip_seconds"), 15);
     m_enableArtworkLoading = readSetting(QString::fromLatin1("enable_artwork_loading"), 1) != 0;
+    m_volumePercent = qBound(0, readSetting(QString::fromLatin1("volume_percent"), 50), 100);
 }
 
 void StorageManager::saveSetting(const QString &key, int value)

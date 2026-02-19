@@ -67,6 +67,36 @@ Page {
 
                     Text {
                         width: parent.width
+                        text: qsTr("Volume: %1%").arg(storage ? storage.volumePercent : 50)
+                        font.pixelSize: 14
+                        color: "#b7c4e0"
+                    }
+
+                    Slider {
+                        id: volumeSlider
+                        width: parent.width
+                        minimumValue: 0
+                        maximumValue: 100
+                        value: storage ? storage.volumePercent : 50
+                        onValueChanged: {
+                            if (!storage || !volumeSlider.pressed) {
+                                return;
+                            }
+                            var v = Math.round(value);
+                            storage.volumePercent = v;
+                            if (audioEngine) {
+                                audioEngine.volume = v / 100.0;
+                            }
+                        }
+                    }
+                }
+
+                Column {
+                    width: parent.width
+                    spacing: 6
+
+                    Text {
+                        width: parent.width
                         text: qsTr("Forward skip seconds: %1").arg(storage ? storage.forwardSkipSeconds : 30)
                         font.pixelSize: 14
                         color: "#b7c4e0"

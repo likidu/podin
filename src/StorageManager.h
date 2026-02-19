@@ -12,6 +12,7 @@ class StorageManager : public QObject
     Q_PROPERTY(int forwardSkipSeconds READ forwardSkipSeconds WRITE setForwardSkipSeconds NOTIFY forwardSkipSecondsChanged)
     Q_PROPERTY(int backwardSkipSeconds READ backwardSkipSeconds WRITE setBackwardSkipSeconds NOTIFY backwardSkipSecondsChanged)
     Q_PROPERTY(bool enableArtworkLoading READ enableArtworkLoading WRITE setEnableArtworkLoading NOTIFY enableArtworkLoadingChanged)
+    Q_PROPERTY(int volumePercent READ volumePercent WRITE setVolumePercent NOTIFY volumePercentChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(QString dbPath READ dbPathForQml CONSTANT)
     Q_PROPERTY(QString dbStatus READ dbStatus CONSTANT)
@@ -24,6 +25,7 @@ public:
     int forwardSkipSeconds() const;
     int backwardSkipSeconds() const;
     bool enableArtworkLoading() const;
+    int volumePercent() const;
     QString lastError() const;
     QString dbPathForQml() const;
     QString dbStatus() const;
@@ -32,6 +34,7 @@ public:
     void setForwardSkipSeconds(int seconds);
     void setBackwardSkipSeconds(int seconds);
     void setEnableArtworkLoading(bool enabled);
+    void setVolumePercent(int percent);
 
     Q_INVOKABLE void refreshSubscriptions();
     Q_INVOKABLE bool isSubscribed(int feedId) const;
@@ -58,6 +61,7 @@ signals:
     void forwardSkipSecondsChanged();
     void backwardSkipSecondsChanged();
     void enableArtworkLoadingChanged();
+    void volumePercentChanged();
     void lastErrorChanged();
 
 private:
@@ -75,6 +79,7 @@ private:
     int m_forwardSkipSeconds;
     int m_backwardSkipSeconds;
     bool m_enableArtworkLoading;
+    int m_volumePercent;
     QString m_lastError;
     QString m_dbPath;
     QString m_dbStatus;
