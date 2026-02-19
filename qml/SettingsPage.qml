@@ -8,6 +8,21 @@ Page {
 
     property QtObject playback: null
 
+    function sleepTimerLabel() {
+        var mins = storage ? storage.sleepTimerMinutes : 0;
+        if (mins <= 0) {
+            return qsTr("Sleep timer: Off");
+        }
+        return qsTr("Sleep timer: %1 min").arg(mins);
+    }
+
+    function setSleepMinutes(mins) {
+        if (!storage) {
+            return;
+        }
+        storage.sleepTimerMinutes = mins;
+    }
+
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
@@ -184,6 +199,81 @@ Page {
                     Text {
                         width: parent.width
                         text: qsTr("Turn off to save memory. List thumbnails will show placeholders only.")
+                        font.pixelSize: 12
+                        color: "#9fb0d3"
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: 10
+
+                Text {
+                    width: parent.width
+                    text: qsTr("Sleep Mode")
+                    font.pixelSize: 18
+                    color: platformStyle.colorNormalLight
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: "#3a4a6a"
+                }
+
+                Column {
+                    width: parent.width
+                    spacing: 6
+
+                    Button {
+                        width: parent.width
+                        text: page.sleepTimerLabel()
+                        onClicked: {
+                            if (!storage) {
+                                return;
+                            }
+                            if (storage.sleepTimerMinutes > 0) {
+                                storage.sleepTimerMinutes = 0;
+                            } else {
+                                storage.sleepTimerMinutes = 30;
+                            }
+                        }
+                    }
+
+                    Column {
+                        width: parent.width
+                        spacing: 4
+                        visible: storage ? storage.sleepTimerMinutes > 0 : false
+
+                        Text {
+                            width: parent.width
+                            text: qsTr("Power off device after:")
+                            font.pixelSize: 14
+                            color: "#b7c4e0"
+                        }
+
+                        Row {
+                            width: parent.width
+                            spacing: 4
+
+                            Repeater {
+                                model: [15, 30, 60, 90, 120]
+
+                                Button {
+                                    width: (parent.width - 4 * 4) / 5
+                                    text: modelData + "m"
+                                    checked: storage ? storage.sleepTimerMinutes === modelData : false
+                                    onClicked: page.setSleepMinutes(modelData)
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: qsTr("When enabled, the device will power off after the selected time during playback.")
                         font.pixelSize: 12
                         color: "#9fb0d3"
                         wrapMode: Text.WordWrap

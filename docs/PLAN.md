@@ -120,6 +120,9 @@ Status notes:
   Artwork loading enabled by default. See docs/DEVICE_NOTES.md for bug details.
 - Done: centralized app paths in src/AppConfig.h (kMemoryCardBase, kPhoneBase, kLogsSubdir).
   Removed old ApiConfig.h (Xiaoyuzhoufm experiment). All paths use AppConfig constants.
+- Done: sleep timer (15/30/60/90/120 min presets) with device power-off via HAL.
+  Timer counts down while playing, pauses when playback pauses.
+  TODO: when playlist feature is added, sleep timer should continue across episodes.
 - Pending: caching/offline behavior, bandwidth controls.
 - Pending: use custom SVG as toolbar icon.
 - Next steps (memory): consider replacing page transitions to reduce stack retention;

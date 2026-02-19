@@ -34,6 +34,7 @@ StorageManager::StorageManager(QObject *parent)
     , m_backwardSkipSeconds(15)
     , m_enableArtworkLoading(false)
     , m_volumePercent(50)
+    , m_sleepTimerMinutes(0)
     , m_dbStatus(QLatin1String("not initialized"))
 {
     initDb();
@@ -113,6 +114,26 @@ void StorageManager::setVolumePercent(int percent)
     m_volumePercent = clamped;
     saveSetting(QString::fromLatin1("volume_percent"), m_volumePercent);
     emit volumePercentChanged();
+}
+
+int StorageManager::sleepTimerMinutes() const
+{
+    return m_sleepTimerMinutes;
+}
+
+void StorageManager::setSleepTimerMinutes(int minutes)
+{
+    // Only allow valid presets: 0 (off), 15, 30, 60, 90, 120
+    if (minutes != 0 && minutes != 15 && minutes != 30 &&
+        minutes != 60 && minutes != 90 && minutes != 120) {
+        return;
+    }
+    if (minutes == m_sleepTimerMinutes) {
+        return;
+    }
+    m_sleepTimerMinutes = minutes;
+    saveSetting(QString::fromLatin1("sleep_timer_minutes"), m_sleepTimerMinutes);
+    emit sleepTimerMinutesChanged();
 }
 
 void StorageManager::refreshSubscriptions()
@@ -598,6 +619,7 @@ void StorageManager::loadSettings()
     m_backwardSkipSeconds = readSetting(QString::fromLatin1("backward_skip_seconds"), 15);
     m_enableArtworkLoading = readSetting(QString::fromLatin1("enable_artwork_loading"), 1) != 0;
     m_volumePercent = qBound(0, readSetting(QString::fromLatin1("volume_percent"), 50), 100);
+    m_sleepTimerMinutes = readSetting(QString::fromLatin1("sleep_timer_minutes"), 0);
 }
 
 void StorageManager::saveSetting(const QString &key, int value)

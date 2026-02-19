@@ -28,6 +28,8 @@ public:
     static const qint64 LowMemoryThreshold = 10 * 1024 * 1024;      // 10 MB
     static const qint64 CriticalMemoryThreshold = 5 * 1024 * 1024;  // 5 MB
 
+    Q_INVOKABLE void powerOff();
+
 public slots:
     void refresh();
 

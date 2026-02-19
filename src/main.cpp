@@ -422,6 +422,7 @@ int main(int argc, char *argv[])
 #else
     view.rootContext()->setContextProperty("debugMode", QVariant(false));
 #endif
+    view.rootContext()->setContextProperty("appVersion", QString::fromLatin1(AppConfig::kAppVersion));
     view.rootContext()->setContextProperty("artworkCache", &artworkCache);
     view.rootContext()->setContextProperty("memoryMonitor", &memoryMonitor);
     view.rootContext()->setContextProperty("streamUrlResolver", &streamUrlResolver);

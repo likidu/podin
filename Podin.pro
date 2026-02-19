@@ -1,6 +1,6 @@
 TEMPLATE = app
 TARGET = Podin
-VERSION = 0.2.0
+VERSION = 0.2.1
 
 # Qt 4.x modules
 QT += core gui network declarative sql

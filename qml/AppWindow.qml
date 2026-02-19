@@ -169,7 +169,7 @@ PodinPageStackWindow {
 
                 Text {
                     width: parent.width
-                    text: qsTr("v0.1")
+                    text: "v" + appVersion
                     font.pixelSize: 16
                     color: "#cdd6ea"
                     horizontalAlignment: Text.AlignHCenter

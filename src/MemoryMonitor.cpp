@@ -3,6 +3,7 @@
 #ifdef Q_OS_SYMBIAN
 #include <hal.h>
 #include <hal_data.h>
+#include <e32hal.h>
 #endif
 
 MemoryMonitor::MemoryMonitor(QObject *parent)
@@ -69,6 +70,16 @@ bool MemoryMonitor::isMemoryCritical() const
         return false;
     }
     return m_freeBytes < CriticalMemoryThreshold;
+}
+
+void MemoryMonitor::powerOff()
+{
+#ifdef Q_OS_SYMBIAN
+    qDebug("MemoryMonitor: powering off device");
+    UserHal::SwitchOff();
+#else
+    qDebug("MemoryMonitor: powerOff() called (no-op on simulator)");
+#endif
 }
 
 void MemoryMonitor::refresh()

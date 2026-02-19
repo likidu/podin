@@ -13,6 +13,7 @@ class StorageManager : public QObject
     Q_PROPERTY(int backwardSkipSeconds READ backwardSkipSeconds WRITE setBackwardSkipSeconds NOTIFY backwardSkipSecondsChanged)
     Q_PROPERTY(bool enableArtworkLoading READ enableArtworkLoading WRITE setEnableArtworkLoading NOTIFY enableArtworkLoadingChanged)
     Q_PROPERTY(int volumePercent READ volumePercent WRITE setVolumePercent NOTIFY volumePercentChanged)
+    Q_PROPERTY(int sleepTimerMinutes READ sleepTimerMinutes WRITE setSleepTimerMinutes NOTIFY sleepTimerMinutesChanged)
     Q_PROPERTY(QVariantList searchHistory READ searchHistory NOTIFY searchHistoryChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(QString dbPath READ dbPathForQml CONSTANT)
@@ -28,6 +29,7 @@ public:
     int backwardSkipSeconds() const;
     bool enableArtworkLoading() const;
     int volumePercent() const;
+    int sleepTimerMinutes() const;
     QString lastError() const;
     QString dbPathForQml() const;
     QString dbStatus() const;
@@ -37,6 +39,7 @@ public:
     void setBackwardSkipSeconds(int seconds);
     void setEnableArtworkLoading(bool enabled);
     void setVolumePercent(int percent);
+    void setSleepTimerMinutes(int minutes);
 
     Q_INVOKABLE void refreshSubscriptions();
     Q_INVOKABLE bool isSubscribed(int feedId) const;
@@ -68,6 +71,7 @@ signals:
     void backwardSkipSecondsChanged();
     void enableArtworkLoadingChanged();
     void volumePercentChanged();
+    void sleepTimerMinutesChanged();
     void searchHistoryChanged();
     void lastErrorChanged();
 
@@ -88,6 +92,7 @@ private:
     int m_backwardSkipSeconds;
     bool m_enableArtworkLoading;
     int m_volumePercent;
+    int m_sleepTimerMinutes;
     QString m_lastError;
     QString m_dbPath;
     QString m_dbStatus;

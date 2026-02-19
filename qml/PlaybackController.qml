@@ -25,6 +25,9 @@ Item {
     property int seekTargetMs: -1
     property bool resumeAfterSeek: false
 
+    // Sleep timer state
+    property int sleepMinutesRemaining: 0
+
     // Fallback state (for handling playback errors)
     property bool isTryingFallback: false
 
@@ -418,6 +421,47 @@ Item {
                 audio.play();
                 playback.isPlaying = true;
                 playback.resumeAfterSeek = false;
+            }
+        }
+    }
+
+    // ========== Sleep Timer ==========
+
+    Timer {
+        id: sleepTimer
+        interval: 60000
+        repeat: true
+        running: playback.isPlaying && playback.sleepMinutesRemaining > 0
+        onTriggered: {
+            playback.sleepMinutesRemaining = playback.sleepMinutesRemaining - 1;
+            console.log("PlaybackController: Sleep timer tick, remaining=" + playback.sleepMinutesRemaining + " min");
+            if (playback.sleepMinutesRemaining <= 0) {
+                console.log("PlaybackController: Sleep timer expired, powering off");
+                audio.stop();
+                playback.isPlaying = false;
+                if (memoryMonitor) {
+                    memoryMonitor.powerOff();
+                }
+            }
+        }
+    }
+
+    onIsPlayingChanged: {
+        if (isPlaying && storage && storage.sleepTimerMinutes > 0 && sleepMinutesRemaining <= 0) {
+            sleepMinutesRemaining = storage.sleepTimerMinutes;
+            console.log("PlaybackController: Sleep timer started, " + sleepMinutesRemaining + " min");
+        }
+    }
+
+    Connections {
+        target: storage
+        ignoreUnknownSignals: true
+        onSleepTimerMinutesChanged: {
+            if (storage.sleepTimerMinutes <= 0) {
+                playback.sleepMinutesRemaining = 0;
+            } else if (playback.isPlaying) {
+                playback.sleepMinutesRemaining = storage.sleepTimerMinutes;
+                console.log("PlaybackController: Sleep timer reset to " + playback.sleepMinutesRemaining + " min");
             }
         }
     }
