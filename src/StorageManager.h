@@ -13,6 +13,7 @@ class StorageManager : public QObject
     Q_PROPERTY(int backwardSkipSeconds READ backwardSkipSeconds WRITE setBackwardSkipSeconds NOTIFY backwardSkipSecondsChanged)
     Q_PROPERTY(bool enableArtworkLoading READ enableArtworkLoading WRITE setEnableArtworkLoading NOTIFY enableArtworkLoadingChanged)
     Q_PROPERTY(int volumePercent READ volumePercent WRITE setVolumePercent NOTIFY volumePercentChanged)
+    Q_PROPERTY(QVariantList searchHistory READ searchHistory NOTIFY searchHistoryChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(QString dbPath READ dbPathForQml CONSTANT)
     Q_PROPERTY(QString dbStatus READ dbStatus CONSTANT)
@@ -22,6 +23,7 @@ public:
     explicit StorageManager(QObject *parent = 0);
 
     QVariantList subscriptions() const;
+    QVariantList searchHistory() const;
     int forwardSkipSeconds() const;
     int backwardSkipSeconds() const;
     bool enableArtworkLoading() const;
@@ -54,6 +56,10 @@ public:
                                          int publishedAt,
                                          int playState);
 
+    Q_INVOKABLE void addSearchHistory(const QString &term);
+    Q_INVOKABLE void removeSearchHistory(const QString &term);
+    Q_INVOKABLE void refreshSearchHistory();
+
     Q_INVOKABLE void clearLastError();
 
 signals:
@@ -62,6 +68,7 @@ signals:
     void backwardSkipSecondsChanged();
     void enableArtworkLoadingChanged();
     void volumePercentChanged();
+    void searchHistoryChanged();
     void lastErrorChanged();
 
 private:
@@ -76,6 +83,7 @@ private:
     void setLastError(const QString &error);
 
     QVariantList m_subscriptions;
+    QVariantList m_searchHistory;
     int m_forwardSkipSeconds;
     int m_backwardSkipSeconds;
     bool m_enableArtworkLoading;

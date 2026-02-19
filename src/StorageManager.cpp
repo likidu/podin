@@ -39,11 +39,17 @@ StorageManager::StorageManager(QObject *parent)
     initDb();
     loadSettings();
     refreshSubscriptions();
+    refreshSearchHistory();
 }
 
 QVariantList StorageManager::subscriptions() const
 {
     return m_subscriptions;
+}
+
+QVariantList StorageManager::searchHistory() const
+{
+    return m_searchHistory;
 }
 
 int StorageManager::forwardSkipSeconds() const
@@ -533,6 +539,12 @@ void StorageManager::initDb()
         logError("create settings table", query.lastError());
     }
 
+    if (!query.exec(QLatin1String("CREATE TABLE IF NOT EXISTS search_history ("
+                                  "term TEXT PRIMARY KEY COLLATE NOCASE, "
+                                  "searched_at INTEGER)"))) {
+        logError("create search_history table", query.lastError());
+    }
+
     if (!query.exec(QLatin1String("INSERT OR IGNORE INTO settings (key, value) "
                                   "VALUES ('forward_skip_seconds', 30)"))) {
         logError("seed forward skip setting", query.lastError());
@@ -640,6 +652,81 @@ void StorageManager::setLastError(const QString &error)
     }
     m_lastError = error;
     emit lastErrorChanged();
+}
+
+void StorageManager::addSearchHistory(const QString &term)
+{
+    QString trimmed = term.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+    if (!ensureOpen()) {
+        return;
+    }
+
+    QSqlDatabase db = QSqlDatabase::database(QLatin1String(kConnectionName));
+    QSqlQuery query(db);
+    query.prepare(QLatin1String("INSERT OR REPLACE INTO search_history (term, searched_at) VALUES (?, ?)"));
+    query.addBindValue(trimmed);
+    query.addBindValue(static_cast<int>(QDateTime::currentDateTimeUtc().toTime_t()));
+    if (!query.exec()) {
+        logError("add search history", query.lastError());
+        return;
+    }
+
+    // Prune to newest 20 entries
+    QSqlQuery prune(db);
+    if (!prune.exec(QLatin1String("DELETE FROM search_history WHERE rowid NOT IN "
+                                  "(SELECT rowid FROM search_history ORDER BY searched_at DESC LIMIT 20)"))) {
+        logError("prune search history", prune.lastError());
+    }
+
+    refreshSearchHistory();
+}
+
+void StorageManager::removeSearchHistory(const QString &term)
+{
+    if (term.isEmpty()) {
+        return;
+    }
+    if (!ensureOpen()) {
+        return;
+    }
+
+    QSqlDatabase db = QSqlDatabase::database(QLatin1String(kConnectionName));
+    QSqlQuery query(db);
+    query.prepare(QLatin1String("DELETE FROM search_history WHERE term = ?"));
+    query.addBindValue(term);
+    if (!query.exec()) {
+        logError("remove search history", query.lastError());
+        return;
+    }
+
+    refreshSearchHistory();
+}
+
+void StorageManager::refreshSearchHistory()
+{
+    if (!ensureOpen()) {
+        return;
+    }
+
+    QSqlDatabase db = QSqlDatabase::database(QLatin1String(kConnectionName));
+    QSqlQuery query(db);
+    if (!query.exec(QLatin1String("SELECT term FROM search_history ORDER BY searched_at DESC"))) {
+        logError("load search history", query.lastError());
+        return;
+    }
+
+    QVariantList results;
+    while (query.next()) {
+        QVariantMap entry;
+        entry.insert(QString::fromLatin1("term"), query.value(0));
+        results.append(entry);
+    }
+
+    m_searchHistory = results;
+    emit searchHistoryChanged();
 }
 
 void StorageManager::clearLastError()

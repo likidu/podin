@@ -119,13 +119,16 @@ Page {
                         spacing: 4
 
                         Text {
+                            width: parent.width
                             text: modelData.title
                             color: platformStyle.colorNormalLight
                             font.pixelSize: 18
+                            maximumLineCount: 1
                             elide: Text.ElideRight
                         }
 
                         Text {
+                            width: parent.width
                             text: modelData.feedId ? qsTr("Feed ID: %1").arg(modelData.feedId) : ""
                             color: "#93a3c4"
                             font.pixelSize: 12

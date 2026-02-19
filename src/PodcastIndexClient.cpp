@@ -398,6 +398,7 @@ QVariantList PodcastIndexClient::parseEpisodeList(const QVariant &root) const
         const QVariant durationValue = pickValue(item, "duration");
         const QString enclosureUrl = pickString(item, "enclosureUrl");
         const QString enclosureType = pickString(item, "enclosureType");
+        const QString description = trimText(pickString(item, "description"), 500);
 
         QVariantMap entry;
         entry.insert(QString::fromLatin1("id"), idValue);
@@ -406,6 +407,7 @@ QVariantList PodcastIndexClient::parseEpisodeList(const QVariant &root) const
         entry.insert(QString::fromLatin1("duration"), durationValue);
         entry.insert(QString::fromLatin1("enclosureUrl"), enclosureUrl);
         entry.insert(QString::fromLatin1("enclosureType"), enclosureType);
+        entry.insert(QString::fromLatin1("description"), description);
         results.append(entry);
     }
 

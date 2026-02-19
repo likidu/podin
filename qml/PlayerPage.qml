@@ -194,6 +194,16 @@ Page {
                          : false
             }
 
+            Text {
+                width: parent.width
+                text: playback && playback.episodeDescription ? playback.episodeDescription : ""
+                color: "#b7c4e0"
+                font.pixelSize: 18
+                wrapMode: Text.WordWrap
+                textFormat: Text.PlainText
+                visible: playback ? (playback.episodeDescription && playback.episodeDescription.length > 0) : false
+            }
+
             Column {
                 id: seekArea
                 width: parent.width

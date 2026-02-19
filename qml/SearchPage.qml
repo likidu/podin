@@ -62,6 +62,9 @@ Page {
     function startSearch() {
         page.hasSearched = true;
         page.lastSearchTerm = page.normalizedSearchTerm(searchField.text);
+        if (page.lastSearchTerm.length > 0 && storage) {
+            storage.addSearchHistory(page.lastSearchTerm);
+        }
         page.resetSearchState();
         apiClient.search(page.lastSearchTerm);
     }
@@ -271,59 +274,69 @@ Page {
 
         delegate: Rectangle {
             width: podcastList.width
-            height: 72
+            height: searchTextCol.height + 16
             radius: 6
             color: index % 2 === 0 ? "#1a2233" : "#1f2a3d"
 
-            Row {
-                anchors.fill: parent
-                anchors.margins: 8
-                spacing: 12
+            Rectangle {
+                id: searchThumb
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.leftMargin: 8
+                anchors.topMargin: 8
+                width: 48
+                height: 48
+                radius: 4
+                color: "#2b354a"
+                border.width: 1
+                border.color: "#3b4660"
 
-                Rectangle {
-                    width: 48
-                    height: 48
-                    radius: 4
-                    color: "#2b354a"
-                    border.width: 1
-                    border.color: "#3b4660"
-
-                    Image {
-                        anchors.fill: parent
-                        anchors.margins: 2
-                        source: storage && storage.enableArtworkLoading ? page.proxyImageUrl(modelData) : ""
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                        asynchronous: true
-                        cache: false
-                        sourceSize.width: 44
-                        sourceSize.height: 44
-                        visible: storage && storage.enableArtworkLoading && source.toString().length > 0
-                        onStatusChanged: {
-                            if (status === Image.Ready) {
-                                page.recordImageSize(modelData.feedId, implicitWidth, implicitHeight);
-                            }
+                Image {
+                    anchors.fill: parent
+                    anchors.margins: 2
+                    source: storage && storage.enableArtworkLoading ? page.proxyImageUrl(modelData) : ""
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    asynchronous: true
+                    cache: false
+                    sourceSize.width: 44
+                    sourceSize.height: 44
+                    visible: storage && storage.enableArtworkLoading && source.toString().length > 0
+                    onStatusChanged: {
+                        if (status === Image.Ready) {
+                            page.recordImageSize(modelData.feedId, implicitWidth, implicitHeight);
                         }
                     }
                 }
+            }
 
-                Column {
-                    width: parent.width - 70
-                    spacing: 4
+            Column {
+                id: searchTextCol
+                anchors.left: searchThumb.right
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.leftMargin: 12
+                anchors.rightMargin: 8
+                anchors.topMargin: 8
+                spacing: 4
 
-                    Text {
-                        text: modelData.title
-                        color: platformStyle.colorNormalLight
-                        font.pixelSize: 18
-                        elide: Text.ElideRight
-                    }
+                Text {
+                    width: parent.width
+                    text: modelData.title
+                    color: platformStyle.colorNormalLight
+                    font.pixelSize: 18
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
 
-                    Text {
-                        text: modelData.description ? modelData.description : ""
-                        color: "#b7c4e0"
-                        font.pixelSize: 14
-                        elide: Text.ElideRight
-                    }
+                Text {
+                    width: parent.width
+                    text: modelData.description ? modelData.description : ""
+                    color: "#b7c4e0"
+                    font.pixelSize: 14
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 3
+                    elide: Text.ElideRight
                 }
             }
 
@@ -340,6 +353,95 @@ Page {
         color: platformStyle.colorNormalLight
         font.pixelSize: 18
         visible: page.hasSearched && !apiClient.busy && apiClient.podcasts.length === 0 && apiClient.errorMessage.length === 0
+    }
+
+    Item {
+        id: historyPanel
+        anchors.top: headerBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        anchors.topMargin: 8
+        anchors.bottomMargin: 16
+        visible: apiClient.podcasts.length === 0 && !apiClient.busy && storage && storage.searchHistory.length > 0
+
+        Column {
+            id: historyHeader
+            width: parent.width
+            spacing: 6
+
+            Text {
+                width: parent.width
+                text: qsTr("Previous Searches")
+                font.pixelSize: 18
+                color: platformStyle.colorNormalLight
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: "#3a4a6a"
+            }
+        }
+
+        ListView {
+            id: historyList
+            anchors.top: historyHeader.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.topMargin: 8
+            spacing: 4
+            clip: true
+            model: storage ? storage.searchHistory : []
+
+            delegate: Rectangle {
+                width: historyList.width
+                height: 40
+                radius: 4
+                color: index % 2 === 0 ? "#1a2233" : "#1f2a3d"
+
+                Text {
+                    anchors.left: parent.left
+                    anchors.right: historyDeleteBtn.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 8
+                    text: modelData.term
+                    color: "#b7c4e0"
+                    font.pixelSize: 16
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
+
+                MouseArea {
+                    anchors.left: parent.left
+                    anchors.right: historyDeleteBtn.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    onClicked: {
+                        searchField.text = modelData.term;
+                        page.startSearch();
+                    }
+                }
+
+                Button {
+                    id: historyDeleteBtn
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 40
+                    height: 32
+                    text: qsTr("x")
+                    onClicked: {
+                        if (storage) {
+                            storage.removeSearchHistory(modelData.term);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Connections {

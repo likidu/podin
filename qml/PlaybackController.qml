@@ -14,6 +14,7 @@ Item {
     property string episodeTitle: ""
     property string podcastTitle: ""
     property string enclosureType: ""
+    property string episodeDescription: ""
 
     // Playback state
     property bool isPlaying: false
@@ -58,7 +59,7 @@ Item {
 
     // ========== Public API ==========
 
-    function startEpisode(url, epId, feed, title, podcast, enclosure, autoPlay) {
+    function startEpisode(url, epId, feed, title, podcast, enclosure, autoPlay, description) {
         var urlString = url ? (url.toString ? url.toString() : url) : "";
         if (urlString.length === 0) {
             return;
@@ -79,6 +80,7 @@ Item {
         episodeTitle = title || "";
         podcastTitle = podcast || "";
         enclosureType = enclosure || "";
+        episodeDescription = description || "";
 
         // Reset playback state
         isPlaying = false;

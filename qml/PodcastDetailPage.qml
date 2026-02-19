@@ -208,7 +208,7 @@ Page {
                       ? page.podcastDescription
                       : qsTr("No description available.")
                 color: "#b7c4e0"
-                font.pixelSize: 15
+                font.pixelSize: 18
                 wrapMode: Text.WordWrap
                 textFormat: Text.PlainText
             }
