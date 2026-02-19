@@ -139,16 +139,29 @@ Page {
                 }
             }
 
-            ToolButton {
+            Item {
                 id: removeButton
                 width: 32
                 height: 32
-                flat: true
-                iconSource: "qrc:/qml/gfx/icon-trash.svg"
                 anchors.right: parent.right
                 anchors.rightMargin: 4
                 anchors.verticalCenter: parent.verticalCenter
-                onClicked: storage.unsubscribe(modelData.feedId)
+
+                Image {
+                    width: 16
+                    height: 16
+                    anchors.centerIn: parent
+                    source: "qrc:/qml/gfx/icon-trash.svg"
+                    sourceSize.width: 16
+                    sourceSize.height: 16
+                    smooth: true
+                    opacity: 0.7
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: storage.unsubscribe(modelData.feedId)
+                }
             }
 
             MouseArea {

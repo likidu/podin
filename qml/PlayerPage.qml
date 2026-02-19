@@ -204,20 +204,32 @@ Page {
                 width: parent.width
                 spacing: 6
 
-                Rectangle {
-                    id: progressTrack
+                Item {
                     width: parent.width
-                    height: 6
-                    radius: 3
-                    color: "#2d3a57"
+                    height: seekSlider.height
+
+                    Slider {
+                        id: seekSlider
+                        width: parent.width
+                        minimumValue: 0
+                        maximumValue: playback && playback.duration > 0 ? playback.duration : 1
+                        value: 0
+                        enabled: playback ? (playback.duration > 0 && playback.available && playback.seekable) : false
+                        onPressedChanged: {
+                            page.userSeeking = pressed;
+                            if (!pressed) {
+                                page.commitSeek();
+                            }
+                        }
+                    }
 
                     Rectangle {
                         id: bufferFill
-                        height: progressTrack.height
-                        radius: progressTrack.radius
+                        height: 6
+                        radius: 3
                         color: "#3b4d6e"
-                        anchors.left: progressTrack.left
-                        anchors.verticalCenter: progressTrack.verticalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
                         width: {
                             if (!playback) {
                                 return 0;
@@ -228,17 +240,17 @@ Page {
                             } else if (progress > 1) {
                                 progress = 1;
                             }
-                            return Math.round(progressTrack.width * progress);
+                            return Math.round(parent.width * progress);
                         }
                     }
 
                     Rectangle {
                         id: progressFill
-                        height: progressTrack.height
-                        radius: progressTrack.radius
+                        height: 6
+                        radius: 3
                         color: "#5a7cff"
-                        anchors.left: progressTrack.left
-                        anchors.verticalCenter: progressTrack.verticalCenter
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.left: parent.left
                         width: {
                             if (!playback || playback.duration <= 0) {
                                 return 0;
@@ -249,22 +261,7 @@ Page {
                             } else if (ratio > 1) {
                                 ratio = 1;
                             }
-                            return Math.round(progressTrack.width * ratio);
-                        }
-                    }
-                }
-
-                Slider {
-                    id: seekSlider
-                    width: parent.width
-                    minimumValue: 0
-                    maximumValue: playback && playback.duration > 0 ? playback.duration : 1
-                    value: 0
-                    enabled: playback ? (playback.duration > 0 && playback.available && playback.seekable) : false
-                    onPressedChanged: {
-                        page.userSeeking = pressed;
-                        if (!pressed) {
-                            page.commitSeek();
+                            return Math.round(parent.width * ratio);
                         }
                     }
                 }

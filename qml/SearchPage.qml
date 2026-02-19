@@ -212,17 +212,30 @@ Page {
                     opacity: 0.4
                 }
 
-                ToolButton {
+                Item {
                     id: clearButton
-                    width: 24
-                    height: 24
-                    iconSource: "qrc:/qml/gfx/icon-x.svg"
-                    flat: true
-                    enabled: searchField.text.length > 0
+                    width: 28
+                    height: 28
                     anchors.right: parent.right
                     anchors.rightMargin: 4
                     anchors.verticalCenter: parent.verticalCenter
-                    onClicked: searchField.text = ""
+                    visible: searchField.text.length > 0
+
+                    Image {
+                        width: 14
+                        height: 14
+                        anchors.centerIn: parent
+                        source: "qrc:/qml/gfx/icon-x.svg"
+                        sourceSize.width: 14
+                        sourceSize.height: 14
+                        smooth: true
+                        opacity: 0.6
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: searchField.text = ""
+                    }
                 }
             }
 
@@ -444,17 +457,30 @@ Page {
                     }
                 }
 
-                ToolButton {
+                Item {
                     id: historyDeleteBtn
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     width: 28
                     height: 28
-                    flat: true
-                    iconSource: "qrc:/qml/gfx/icon-x.svg"
-                    onClicked: {
-                        if (storage) {
-                            storage.removeSearchHistory(modelData.term);
+
+                    Image {
+                        width: 14
+                        height: 14
+                        anchors.centerIn: parent
+                        source: "qrc:/qml/gfx/icon-x.svg"
+                        sourceSize.width: 14
+                        sourceSize.height: 14
+                        smooth: true
+                        opacity: 0.6
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            if (storage) {
+                                storage.removeSearchHistory(modelData.term);
+                            }
                         }
                     }
                 }
