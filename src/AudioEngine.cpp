@@ -326,10 +326,10 @@ void AudioEngine::onPlayerPositionChanged(qint64 pos)
     if (m_position == newPos)
         return;
     m_position = newPos;
-    // Throttle: only notify QML when position has moved >=500 ms from the last
-    // emitted value. This keeps the seek slider responsive without flooding the
-    // QML event loop at the full QMediaPlayer tick rate (~20-50 Hz).
-    if (m_lastEmittedPosition < 0 || qAbs(m_position - m_lastEmittedPosition) >= 500) {
+    // Throttle: only notify QML when position has moved >=1000 ms from the last
+    // emitted value. On the Nokia C7's slow CPU, 1 Hz updates keep the seek
+    // slider responsive without overloading the QML event loop.
+    if (m_lastEmittedPosition < 0 || qAbs(m_position - m_lastEmittedPosition) >= 1000) {
         m_lastEmittedPosition = m_position;
         emit positionChanged();
     }

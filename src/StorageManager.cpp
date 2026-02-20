@@ -526,9 +526,9 @@ void StorageManager::initDb()
     m_dbStatus = QLatin1String("open");
     qDebug() << "StorageManager: Database opened successfully";
 
-    // Use DELETE journal mode for better Symbian compatibility
+    // Use WAL journal mode for non-blocking writes (avoids fsync stalls during playback)
     QSqlQuery journalQuery(db);
-    if (!journalQuery.exec(QLatin1String("PRAGMA journal_mode=DELETE"))) {
+    if (!journalQuery.exec(QLatin1String("PRAGMA journal_mode=WAL"))) {
         qDebug() << "StorageManager: Could not set journal_mode";
     }
 

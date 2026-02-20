@@ -406,7 +406,7 @@ Item {
     }
 
     Timer {
-        interval: 5000
+        interval: 30000
         running: playback.isPlaying
         repeat: true
         onTriggered: playback.saveProgress(1)
