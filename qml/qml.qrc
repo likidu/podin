@@ -1,13 +1,22 @@
 <RCC>
     <qresource prefix="/qml">
-        <file>MainPage.qml</file>
+        <file>SearchPage.qml</file>
+        <file>MemoryBar.qml</file>
         <file>EpisodesPage.qml</file>
         <file>PodcastDetailPage.qml</file>
         <file>PlayerPage.qml</file>
         <file>PlaybackController.qml</file>
         <file>SubscriptionsPage.qml</file>
+        <file>SettingsPage.qml</file>
         <file>AppWindow.qml</file>
         <file>PodinPageStackWindow.qml</file>
-        <file>AudioFacade.qml</file>
+        <file>gfx/icon-podcast.svg</file>
+        <file>gfx/icon-gramophone.svg</file>
+        <file>gfx/icon-search.svg</file>
+        <file>gfx/icon-x.svg</file>
+        <file>gfx/icon-x-dark.svg</file>
+        <file>gfx/icon-search-dark.svg</file>
+        <file>gfx/icon-trash.svg</file>
+        <file>gfx/icon-link.svg</file>
     </qresource>
 </RCC>

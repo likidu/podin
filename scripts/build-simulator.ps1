@@ -70,11 +70,11 @@ $env:PATH = "$QtBin;$MakeBin;$env:PATH"
 Push-Location $buildDir
 try {
     Write-Info "Running qmake..."
-    & $qmake $proFile -spec win32-g++ "CONFIG+=$Config" | Write-Host
+    & $qmake $proFile -spec win32-g++ "CONFIG+=$Config" 2>&1 | ForEach-Object { "$_" }
     if ($LASTEXITCODE -ne 0) { throw "qmake failed with exit code $LASTEXITCODE" }
 
     Write-Info "Building with mingw32-make..."
-    & $make -j $env:NUMBER_OF_PROCESSORS | Write-Host
+    & $make -j $env:NUMBER_OF_PROCESSORS 2>&1 | ForEach-Object { "$_" }
     if ($LASTEXITCODE -ne 0) { throw "mingw32-make failed with exit code $LASTEXITCODE" }
 
     if (-not $UseDepDlls) {

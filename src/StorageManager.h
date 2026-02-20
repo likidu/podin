@@ -2,6 +2,8 @@
 #define STORAGEMANAGER_H
 
 #include <QtCore/QObject>
+#include <QtCore/QHash>
+#include <QtCore/QPair>
 #include <QtCore/QVariantList>
 #include <QtCore/QVariantMap>
 
@@ -9,15 +11,42 @@ class StorageManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QVariantList subscriptions READ subscriptions NOTIFY subscriptionsChanged)
+    Q_PROPERTY(int forwardSkipSeconds READ forwardSkipSeconds WRITE setForwardSkipSeconds NOTIFY forwardSkipSecondsChanged)
+    Q_PROPERTY(int backwardSkipSeconds READ backwardSkipSeconds WRITE setBackwardSkipSeconds NOTIFY backwardSkipSecondsChanged)
+    Q_PROPERTY(bool enableArtworkLoading READ enableArtworkLoading WRITE setEnableArtworkLoading NOTIFY enableArtworkLoadingChanged)
+    Q_PROPERTY(int volumePercent READ volumePercent WRITE setVolumePercent NOTIFY volumePercentChanged)
+    Q_PROPERTY(int sleepTimerMinutes READ sleepTimerMinutes WRITE setSleepTimerMinutes NOTIFY sleepTimerMinutesChanged)
+    Q_PROPERTY(QVariantList searchHistory READ searchHistory NOTIFY searchHistoryChanged)
+    Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
+    Q_PROPERTY(QString dbPath READ dbPathForQml CONSTANT)
+    Q_PROPERTY(QString dbStatus READ dbStatus CONSTANT)
+    Q_PROPERTY(QString dbPathLog READ dbPathLog CONSTANT)
 
 public:
     explicit StorageManager(QObject *parent = 0);
 
     QVariantList subscriptions() const;
+    QVariantList searchHistory() const;
+    int forwardSkipSeconds() const;
+    int backwardSkipSeconds() const;
+    bool enableArtworkLoading() const;
+    int volumePercent() const;
+    int sleepTimerMinutes() const;
+    QString lastError() const;
+    QString dbPathForQml() const;
+    QString dbStatus() const;
+    QString dbPathLog() const;
+
+    void setForwardSkipSeconds(int seconds);
+    void setBackwardSkipSeconds(int seconds);
+    void setEnableArtworkLoading(bool enabled);
+    void setVolumePercent(int percent);
+    void setSleepTimerMinutes(int minutes);
 
     Q_INVOKABLE void refreshSubscriptions();
     Q_INVOKABLE bool isSubscribed(int feedId) const;
-    Q_INVOKABLE void subscribe(int feedId, const QString &title, const QString &image);
+    Q_INVOKABLE void subscribe(int feedId, const QString &title, const QString &image,
+                               const QString &guid = QString(), const QString &imageUrlHash = QString());
     Q_INVOKABLE void unsubscribe(int feedId);
 
     Q_INVOKABLE int loadEpisodePosition(const QString &episodeId) const;
@@ -32,16 +61,48 @@ public:
                                          int publishedAt,
                                          int playState);
 
+    Q_INVOKABLE void addSearchHistory(const QString &term);
+    Q_INVOKABLE void removeSearchHistory(const QString &term);
+    Q_INVOKABLE void refreshSearchHistory();
+
+    Q_INVOKABLE void clearLastError();
+
 signals:
     void subscriptionsChanged();
+    void forwardSkipSecondsChanged();
+    void backwardSkipSecondsChanged();
+    void enableArtworkLoadingChanged();
+    void volumePercentChanged();
+    void sleepTimerMinutesChanged();
+    void searchHistoryChanged();
+    void lastErrorChanged();
 
 private:
-    QString dbPath() const;
+    QString dbPath();
     bool ensureOpen() const;
     void initDb();
+    void loadSettings();
+    void saveSetting(const QString &key, int value);
+    int readSetting(const QString &key, int defaultValue) const;
     void setSubscriptions(const QVariantList &list);
 
+    void setLastError(const QString &error);
+
+    // Tracks the last persisted (positionMs, playState) per episode to avoid
+    // redundant DB writes when position hasn't changed (e.g. while paused).
+    QHash<QString, QPair<int,int> > m_lastSavedProgress;
+
     QVariantList m_subscriptions;
+    QVariantList m_searchHistory;
+    int m_forwardSkipSeconds;
+    int m_backwardSkipSeconds;
+    bool m_enableArtworkLoading;
+    int m_volumePercent;
+    int m_sleepTimerMinutes;
+    QString m_lastError;
+    QString m_dbPath;
+    QString m_dbStatus;
+    QString m_dbPathLog;
 };
 
 #endif // STORAGEMANAGER_H

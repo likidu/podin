@@ -6,52 +6,94 @@ Item {
     height: 0
     visible: false
 
+    // Episode information
     property url streamUrl: ""
+    property url originalUrl: ""
     property string episodeId: ""
     property int feedId: 0
     property string episodeTitle: ""
     property string podcastTitle: ""
     property string enclosureType: ""
+    property string episodeDescription: ""
+
+    // Playback state
     property bool isPlaying: false
     property bool manualPaused: false
     property int pendingSeekMs: 0
     property bool resumeApplied: false
     property bool pauseAfterSeek: false
+    property int seekTargetMs: -1
+    property bool resumeAfterSeek: false
 
-    property int state: audio.state
-    property int status: audio.status
-    property int position: audio.position
-    property int duration: audio.duration
-    property bool available: audio.available
-    property string errorString: audio.errorString
-    property int stoppedState: audio.stoppedState
-    property int playingState: audio.playingState
-    property int pausedState: audio.pausedState
-    property int noMediaStatus: audio.noMediaStatus
-    property int loadingStatus: audio.loadingStatus
-    property int loadedStatus: audio.loadedStatus
-    property int bufferingStatus: audio.bufferingStatus
-    property int bufferedStatus: audio.bufferedStatus
-    property int stalledStatus: audio.stalledStatus
-    property int endOfMedia: audio.endOfMedia
-    property int invalidMedia: audio.invalidMedia
+    // Sleep timer state
+    property int sleepMinutesRemaining: 0
 
-    function startEpisode(url, epId, feed, title, podcast, enclosure, autoPlay) {
+    // Fallback state (for handling playback errors)
+    property bool isTryingFallback: false
+
+    // Resolver state
+    property bool isResolving: streamUrlResolver ? streamUrlResolver.resolving : false
+
+    // Audio backend (C++ AudioEngine exposed as context property)
+    property QtObject audio: audioEngine
+
+    // Audio state (forwarded from audio engine)
+    property int state: audio ? audio.state : 0
+    property int status: audio ? audio.status : 0
+    property int position: audio ? audio.position : 0
+    property int duration: audio ? audio.duration : 0
+    property real bufferProgress: audio ? audio.bufferProgress : 0
+    property bool seekable: audio ? audio.seekable : false
+    property bool available: audio ? audio.available : false
+    property string errorString: audio ? audio.errorString : ""
+
+    // Audio status constants
+    property int stoppedState: audio ? audio.stoppedState : 0
+    property int playingState: audio ? audio.playingState : 1
+    property int pausedState: audio ? audio.pausedState : 2
+    property int noMediaStatus: audio ? audio.noMediaStatus : 1
+    property int loadingStatus: audio ? audio.loadingStatus : 2
+    property int loadedStatus: audio ? audio.loadedStatus : 3
+    property int bufferingStatus: audio ? audio.bufferingStatus : 5
+    property int bufferedStatus: audio ? audio.bufferedStatus : 6
+    property int stalledStatus: audio ? audio.stalledStatus : 4
+    property int endOfMedia: audio ? audio.endOfMedia : 7
+    property int invalidMedia: audio ? audio.invalidMedia : 8
+
+    // ========== Public API ==========
+
+    function startEpisode(url, epId, feed, title, podcast, enclosure, autoPlay, description) {
         var urlString = url ? (url.toString ? url.toString() : url) : "";
         if (urlString.length === 0) {
             return;
         }
-        streamUrl = urlString;
+
+        // Stop current playback before switching episodes
+        audio.stop();
+        if (streamUrlResolver) {
+            streamUrlResolver.abort();
+        }
+        resolverTimeoutTimer.stop();
+
+        // Set episode info
+        originalUrl = urlString;
+        streamUrl = "";
         episodeId = epId ? epId.toString() : "";
         feedId = feed || 0;
         episodeTitle = title || "";
         podcastTitle = podcast || "";
         enclosureType = enclosure || "";
+        episodeDescription = description || "";
+
+        // Reset playback state
+        isPlaying = false;
+        manualPaused = false;
         pendingSeekMs = 0;
         resumeApplied = false;
         pauseAfterSeek = false;
-        manualPaused = false;
+        resetFallbackState();
 
+        // Load saved state if available
         if (storage && episodeId.length > 0) {
             var stateMap = storage.loadEpisodeState(episodeId);
             pendingSeekMs = stateMap.positionMs ? stateMap.positionMs : 0;
@@ -62,27 +104,46 @@ Item {
             }
         }
 
+        console.log("PlaybackController: Starting episode:", originalUrl);
+
         var shouldAutoPlay = (autoPlay === undefined) ? true : autoPlay;
         if (shouldAutoPlay) {
-            play();
+            resolveAndPlay();
         }
     }
 
     function play() {
-        audio.ensureImpl();
-        if (!audio.available) {
+        // Check memory before attempting playback
+        if (memoryMonitor && memoryMonitor.isMemoryCritical) {
+            console.log("PlaybackController: Memory critically low, refusing to play");
+            isPlaying = false;
+            manualPaused = true;
             return;
         }
+
+        // If streamUrl is empty, resolve first
+        var streamUrlStr = streamUrl ? streamUrl.toString() : "";
+        var originalUrlStr = originalUrl ? originalUrl.toString() : "";
+        if (streamUrlStr.length === 0 && originalUrlStr.length > 0) {
+            resolveAndPlay();
+            return;
+        }
+
+        if (!audio || !audio.available) {
+            isPlaying = false;
+            manualPaused = true;
+            return;
+        }
+
         var resumeNow = manualPaused && pendingSeekMs > 0;
         if (resumeNow) {
             resumeApplied = false;
         }
+
         audio.play();
         isPlaying = true;
         manualPaused = false;
-        if (!resumeApplied) {
-            pauseAfterSeek = pauseAfterSeek;
-        }
+
         if (resumeNow) {
             audio.seek(pendingSeekMs);
             resumeApplied = true;
@@ -90,11 +151,12 @@ Item {
     }
 
     function pause() {
-        audio.ensureImpl();
-        if (!audio.available) {
+        if (!audio || !audio.available) {
             return;
         }
-        pendingSeekMs = audio.position;
+        if (!(pendingSeekMs > 0 && !resumeApplied)) {
+            pendingSeekMs = audio.position;
+        }
         resumeApplied = false;
         manualPaused = true;
         isPlaying = false;
@@ -110,11 +172,182 @@ Item {
     }
 
     function seek(positionMs) {
-        audio.ensureImpl();
-        if (!audio.available) {
+        if (!audio || !audio.available) {
             return;
         }
-        audio.seek(positionMs);
+        var target = Math.max(0, positionMs);
+        if (audio.duration > 0 && target > audio.duration) {
+            target = audio.duration;
+        }
+
+        var shouldResume = isPlaying && !manualPaused;
+        if (shouldResume) {
+            audio.pause();
+        }
+
+        seekTargetMs = target;
+        resumeAfterSeek = shouldResume;
+        audio.seek(target);
+
+        if (resumeAfterSeek) {
+            seekResumeTimer.restart();
+        }
+        pendingSeekMs = target;
+        resumeApplied = false;
+    }
+
+    function seekBuffered(positionMs) {
+        var limit = bufferedLimitMs();
+        var target = (limit > 0 && positionMs > limit) ? limit : positionMs;
+        seek(target);
+    }
+
+    function skipRelative(seconds) {
+        var deltaMs = Math.round((seconds || 0) * 1000);
+        seekBuffered(position + deltaMs);
+    }
+
+    // ========== Internal Functions ==========
+
+    function resolveAndPlay() {
+        var urlStr = originalUrl ? originalUrl.toString() : "";
+
+        // For simple direct audio URLs, skip resolution entirely
+        // Resolution can interfere with Symbian MMF
+        if (urlStr.match(/\.(mp3|m4a|aac|ogg)(\?|$)/i)) {
+            console.log("PlaybackController: Direct audio URL, skipping resolution");
+            streamUrl = originalUrl;
+            play();
+            return;
+        }
+
+        if (!streamUrlResolver) {
+            streamUrl = originalUrl;
+            play();
+            return;
+        }
+        resolverTimeoutTimer.restart();
+        streamUrlResolver.resolve(originalUrl);
+    }
+
+    function resetFallbackState() {
+        isTryingFallback = false;
+        triedUrls = [];
+    }
+
+    function allFallbacksExhausted() {
+        // Check if we've tried enough URLs (at minimum: original + alternate protocol)
+        return triedUrls.length >= 2;
+    }
+
+    // Track which URLs we've actually tried to avoid loops
+    property variant triedUrls: []
+
+    function hasTriedUrl(url) {
+        for (var i = 0; i < triedUrls.length; i++) {
+            if (triedUrls[i] === url) return true;
+        }
+        return false;
+    }
+
+    function markUrlTried(url) {
+        var arr = [];
+        for (var i = 0; i < triedUrls.length; i++) {
+            arr.push(triedUrls[i]);
+        }
+        arr.push(url);
+        triedUrls = arr;
+    }
+
+    function tryFallback() {
+        // Guard against re-entry (reset triggers status changes)
+        if (isTryingFallback) {
+            return true;
+        }
+
+        var current = streamUrl ? streamUrl.toString() : "";
+        console.log("PlaybackController: tryFallback called, current URL:", current);
+        console.log("PlaybackController: Already tried URLs:", triedUrls.length);
+
+        // Get base URL without protocol for comparison
+        var currentBase = current.replace(/^https?:\/\//, "");
+
+        // Try alternate protocol (HTTP <-> HTTPS)
+        var altProtocol = "";
+        if (current.indexOf("https://") === 0) {
+            altProtocol = "http://" + currentBase;
+        } else if (current.indexOf("http://") === 0) {
+            altProtocol = "https://" + currentBase;
+        }
+
+        if (altProtocol.length > 0 && !hasTriedUrl(altProtocol)) {
+            return tryWithUrl(altProtocol, "alternate protocol");
+        }
+
+        // Try stripping query params (for both HTTP and HTTPS)
+        var questionIdx = currentBase.indexOf("?");
+        if (questionIdx !== -1) {
+            var pathOnly = currentBase.substring(0, questionIdx);
+            if (pathOnly.match(/\.(mp3|m4a|aac|ogg)$/i)) {
+                var strippedHttps = "https://" + pathOnly;
+                var strippedHttp = "http://" + pathOnly;
+                if (!hasTriedUrl(strippedHttps)) {
+                    return tryWithUrl(strippedHttps, "stripped query (HTTPS)");
+                }
+                if (!hasTriedUrl(strippedHttp)) {
+                    return tryWithUrl(strippedHttp, "stripped query (HTTP)");
+                }
+            }
+        }
+
+        // Try original URL if different from resolved
+        var originalStr = originalUrl ? originalUrl.toString() : "";
+        if (originalStr.length > 0) {
+            var originalBase = originalStr.replace(/^https?:\/\//, "");
+            // Only try original if it's actually different
+            if (originalBase !== currentBase && originalBase !== currentBase.split("?")[0]) {
+                var originalHttps = "https://" + originalBase;
+                var originalHttp = "http://" + originalBase;
+                if (!hasTriedUrl(originalHttps)) {
+                    return tryWithUrl(originalHttps, "original URL (HTTPS)");
+                }
+                if (!hasTriedUrl(originalHttp)) {
+                    return tryWithUrl(originalHttp, "original URL (HTTP)");
+                }
+            }
+        }
+
+        console.log("PlaybackController: All fallbacks exhausted after trying", triedUrls.length, "URLs");
+        return false;
+    }
+
+    function tryWithUrl(url, description) {
+        isTryingFallback = true;
+        markUrlTried(url);
+        // Just stop and change source - don't reset/destroy
+        audio.stop();
+        streamUrl = url;
+        console.log("PlaybackController: Trying " + description + ":", url);
+        isTryingFallback = false;
+        play();
+        return true;
+    }
+
+    // Legacy function name for compatibility
+    function tryHttpFallback() {
+        return tryFallback();
+    }
+
+    function bufferedLimitMs() {
+        if (audio.duration <= 0) {
+            return 0;
+        }
+        var progress = audio.bufferProgress;
+        if (progress <= 0 || progress > 1) {
+            return audio.duration;
+        }
+        var limit = Math.floor(audio.duration * progress);
+        return (limit <= 0 || limit < audio.position) ? audio.duration : limit;
     }
 
     function saveProgress(playState) {
@@ -122,15 +355,54 @@ Item {
             return;
         }
         var state = playState !== undefined ? playState : (isPlaying ? 1 : (manualPaused ? 2 : 0));
-        storage.saveEpisodeProgress(episodeId,
-                                    feedId,
-                                    episodeTitle,
-                                    streamUrl.toString(),
-                                    Math.floor(duration / 1000),
-                                    position,
-                                    enclosureType,
-                                    0,
-                                    state);
+        storage.saveEpisodeProgress(episodeId, feedId, episodeTitle, streamUrl.toString(),
+                                    Math.floor(duration / 1000), position, enclosureType, 0, state);
+    }
+
+    function handlePlaybackError() {
+        var current = streamUrl ? streamUrl.toString() : "";
+        console.log("PlaybackController: Playback error for:", current);
+
+        // Mark current URL as tried
+        if (current.length > 0 && !hasTriedUrl(current)) {
+            markUrlTried(current);
+        }
+
+        // Try one fallback (alternate protocol) but don't be aggressive
+        // Symbian MMF can get overwhelmed with rapid retries
+        if (triedUrls.length < 2) {
+            fallbackTimer.restart();
+        } else {
+            isPlaying = false;
+            console.log("PlaybackController: Playback failed after", triedUrls.length, "attempts");
+        }
+    }
+
+    Timer {
+        id: fallbackTimer
+        interval: 1500
+        repeat: false
+        onTriggered: {
+            if (!playback.tryFallback()) {
+                playback.isPlaying = false;
+            }
+        }
+    }
+
+    // ========== Timers ==========
+
+    Timer {
+        id: resolverTimeoutTimer
+        interval: 15000
+        repeat: false
+        onTriggered: {
+            if (streamUrlResolver && streamUrlResolver.resolving) {
+                console.log("PlaybackController: Resolver timeout, using original URL");
+                streamUrlResolver.abort();
+                playback.streamUrl = playback.originalUrl;
+                playback.play();
+            }
+        }
     }
 
     Timer {
@@ -140,27 +412,92 @@ Item {
         onTriggered: playback.saveProgress(1)
     }
 
-    AudioFacade {
-        id: audio
-        source: playback.streamUrl
-        volume: 1.0
-        muted: false
+    Timer {
+        id: seekResumeTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (playback.resumeAfterSeek) {
+                audio.play();
+                playback.isPlaying = true;
+                playback.resumeAfterSeek = false;
+            }
+        }
+    }
+
+    // ========== Sleep Timer ==========
+
+    Timer {
+        id: sleepTimer
+        interval: 60000
+        repeat: true
+        running: playback.isPlaying && playback.sleepMinutesRemaining > 0
+        onTriggered: {
+            playback.sleepMinutesRemaining = playback.sleepMinutesRemaining - 1;
+            console.log("PlaybackController: Sleep timer tick, remaining=" + playback.sleepMinutesRemaining + " min");
+            if (playback.sleepMinutesRemaining <= 0) {
+                console.log("PlaybackController: Sleep timer expired, powering off");
+                audio.stop();
+                playback.isPlaying = false;
+                if (memoryMonitor) {
+                    memoryMonitor.powerOff();
+                }
+            }
+        }
+    }
+
+    onIsPlayingChanged: {
+        if (isPlaying && storage && storage.sleepTimerMinutes > 0 && sleepMinutesRemaining <= 0) {
+            sleepMinutesRemaining = storage.sleepTimerMinutes;
+            console.log("PlaybackController: Sleep timer started, " + sleepMinutesRemaining + " min");
+        }
+    }
+
+    Connections {
+        target: storage
+        ignoreUnknownSignals: true
+        onSleepTimerMinutesChanged: {
+            if (storage.sleepTimerMinutes <= 0) {
+                playback.sleepMinutesRemaining = 0;
+            } else if (playback.isPlaying) {
+                playback.sleepMinutesRemaining = storage.sleepTimerMinutes;
+                console.log("PlaybackController: Sleep timer reset to " + playback.sleepMinutesRemaining + " min");
+            }
+        }
+    }
+
+    // ========== Audio Backend ==========
+    // AudioEngine is a C++ QMediaPlayer wrapper exposed as "audioEngine" context property.
+    // The "audio" property above binds to it.
+
+    onStreamUrlChanged: {
+        if (audio) {
+            audio.source = streamUrl;
+        }
+    }
+
+    Connections {
+        target: audio
+        ignoreUnknownSignals: true
 
         onStatusChanged: {
+            var st = audio.status;
+
             if (!playback.manualPaused &&
-                (status === audio.loadingStatus ||
-                 status === audio.bufferingStatus ||
-                 status === audio.loadedStatus ||
-                 status === audio.bufferedStatus ||
-                 status === audio.stalledStatus)) {
+                (st === playback.loadingStatus ||
+                 st === playback.bufferingStatus ||
+                 st === playback.loadedStatus ||
+                 st === playback.bufferedStatus ||
+                 st === playback.stalledStatus)) {
                 playback.isPlaying = true;
             }
+
             if (!playback.resumeApplied &&
                 playback.pendingSeekMs > 0 &&
-                (status === audio.loadedStatus ||
-                 status === audio.bufferingStatus ||
-                 status === audio.bufferedStatus ||
-                 status === audio.stalledStatus)) {
+                (st === playback.loadedStatus ||
+                 st === playback.bufferingStatus ||
+                 st === playback.bufferedStatus ||
+                 st === playback.stalledStatus)) {
                 audio.seek(playback.pendingSeekMs);
                 playback.resumeApplied = true;
                 if (playback.pauseAfterSeek) {
@@ -170,12 +507,35 @@ Item {
                     playback.pauseAfterSeek = false;
                 }
             }
-            if (status === audio.endOfMedia) {
+
+            if (st === playback.endOfMedia) {
                 playback.isPlaying = false;
                 playback.pendingSeekMs = 0;
                 playback.resumeApplied = true;
                 playback.saveProgress(0);
             }
+
+            if (st === playback.invalidMedia) {
+                playback.handlePlaybackError();
+            }
+        }
+
+        onError: playback.handlePlaybackError()
+    }
+
+    Connections {
+        target: streamUrlResolver ? streamUrlResolver : null
+        ignoreUnknownSignals: true
+        onResolved: {
+            resolverTimeoutTimer.stop();
+            playback.streamUrl = finalUrl;
+            playback.play();
+        }
+        onError: {
+            resolverTimeoutTimer.stop();
+            console.log("PlaybackController: URL resolution failed:", message);
+            playback.streamUrl = playback.originalUrl;
+            playback.play();
         }
     }
 }

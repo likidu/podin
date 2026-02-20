@@ -64,7 +64,7 @@ Page {
                 (day < 10 ? "0" + day : day);
     }
 
-    function openPlayerForItem(url, title, enclosureType, datePublished, durationSeconds, episodeId) {
+    function openPlayerForItem(url, title, enclosureType, datePublished, durationSeconds, episodeId, description) {
         var urlString = url ? (url.toString ? url.toString() : url) : "";
         if (urlString.length === 0) {
             return;
@@ -72,6 +72,7 @@ Page {
         if (!pageStack) {
             return;
         }
+        apiClient.clearEpisodes();
         var epId = episodeId ? episodeId.toString() : "";
         var epTitle = title || "";
         var encType = enclosureType || "";
@@ -89,24 +90,18 @@ Page {
             metaParts.push(metaType);
         }
         page.nowPlayingMeta = metaParts.join(" • ");
-        if (page.playback) {
-            var sameEpisode = (page.playback.streamUrl && page.playback.streamUrl.toString() === urlString) &&
-                              (page.playback.episodeId === epId);
-            if (!sameEpisode) {
-                page.playback.startEpisode(urlString,
-                                           epId,
-                                           page.feedId,
-                                           epTitle,
-                                           page.podcastTitle,
-                                           encType,
-                                           true);
-            }
-        }
         var params = {
             tools: page.tools,
-            playback: page.playback
+            playback: page.playback,
+            viewedUrl: urlString,
+            viewedEpisodeId: epId,
+            viewedFeedId: page.feedId,
+            viewedTitle: epTitle,
+            viewedPodcastTitle: page.podcastTitle,
+            viewedEnclosureType: encType,
+            viewedDescription: description || ""
         };
-        pageStack.push(Qt.resolvedUrl("PlayerPage.qml"), params);
+        pageStack.replace(Qt.resolvedUrl("PlayerPage.qml"), params, true);
     }
 
     function openNowPlaying() {
@@ -142,12 +137,28 @@ Page {
         }
     }
 
+    Timer {
+        id: cleanupTimer
+        interval: 300
+        repeat: false
+        onTriggered: {
+            page.lastRequestedFeedId = 0;
+            apiClient.clearEpisodes();
+        }
+    }
+
+    onStatusChanged: {
+        if (status === PageStatus.Inactive) {
+            cleanupTimer.restart();
+        } else if (status === PageStatus.Active && page.hasLoaded) {
+            cleanupTimer.stop();
+            requestEpisodesIfReady();
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#202942" }
-            GradientStop { position: 1.0; color: "#101624" }
-        }
+        color: "#181f33"
     }
 
     Rectangle {
@@ -276,24 +287,31 @@ Page {
 
         delegate: Rectangle {
             width: episodeList.width
-            height: 72
+            height: episodeContent.height + 16
             radius: 6
             color: index % 2 === 0 ? "#1b2335" : "#202a3f"
             opacity: modelData.enclosureUrl && modelData.enclosureUrl.length > 0 ? 1.0 : 0.6
 
             Column {
-                anchors.fill: parent
+                id: episodeContent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
                 anchors.margins: 8
                 spacing: 4
 
                 Text {
+                    width: parent.width
                     text: modelData.title
                     color: platformStyle.colorNormalLight
                     font.pixelSize: 17
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
                     elide: Text.ElideRight
                 }
 
                 Text {
+                    width: parent.width
                     text: formatDate(modelData.datePublished) + "  " + formatDuration(modelData.duration) + "  " +
                           mediaLabelFor(modelData.enclosureUrl, modelData.enclosureType)
                     color: "#b7c4e0"
@@ -309,7 +327,8 @@ Page {
                                                   modelData.enclosureType,
                                                   modelData.datePublished,
                                                   modelData.duration,
-                                                  modelData.id)
+                                                  modelData.id,
+                                                  modelData.description)
             }
         }
     }

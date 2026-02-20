@@ -43,6 +43,25 @@ Notes:
 - When `-UseDepDlls` is provided the script copies the patched DLL set (QtCore/QtNetwork/OpenSSL) from `deps\win32\qt4-openssl\<config>` beside the exe. Missing files trigger warnings so you can verify your dep cache.
 - Adjust `-QtBin` / `-MakeBin` if your SDK lives outside the default paths.
 
+## Build and Package (Symbian Device)
+
+From a PowerShell prompt in the repo root:
+
+```powershell
+# Build for device (Nokia C7 is armv6)
+pwsh scripts/build-symbian.ps1 -Config Release -Arch armv5
+
+# Package into a self-signed .sis
+pwsh scripts/package-symbian.ps1 -Config Release -Arch armv5
+```
+
+Notes:
+
+- Output is staged in `build-symbian\armv6-release\` (or `armv5-release` if you target armv5).
+- The package template is `Podin_template.pkg` and the script generates `Podin_local.pkg`.
+- Update the package UID in `Podin_template.pkg` if you have a real Symbian Signed UID.
+- See `docs/SYMBIAN_PACKAGING.md` for install steps and the device test checklist.
+
 ## Run
 
 - **Simulator runtime (default):** run `pwsh -File build-simulator\debug\Podin.run.ps1` (or the release variant). The launcher ensures PATH and plugin lookup point at the simulator install.
