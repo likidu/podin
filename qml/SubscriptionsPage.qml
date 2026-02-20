@@ -35,10 +35,7 @@ Page {
 
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#1f2a43" }
-            GradientStop { position: 1.0; color: "#0f1524" }
-        }
+        color: "#171f33"
     }
 
     Item {
@@ -121,7 +118,7 @@ Page {
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             asynchronous: true
-                            cache: false
+                            cache: true
                             sourceSize.width: 44
                             sourceSize.height: 44
                             visible: storage && storage.enableArtworkLoading && source.toString().length > 0

@@ -2,6 +2,8 @@
 #define STORAGEMANAGER_H
 
 #include <QtCore/QObject>
+#include <QtCore/QHash>
+#include <QtCore/QPair>
 #include <QtCore/QVariantList>
 #include <QtCore/QVariantMap>
 
@@ -85,6 +87,10 @@ private:
     void setSubscriptions(const QVariantList &list);
 
     void setLastError(const QString &error);
+
+    // Tracks the last persisted (positionMs, playState) per episode to avoid
+    // redundant DB writes when position hasn't changed (e.g. while paused).
+    QHash<QString, QPair<int,int> > m_lastSavedProgress;
 
     QVariantList m_subscriptions;
     QVariantList m_searchHistory;

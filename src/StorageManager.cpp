@@ -270,6 +270,13 @@ void StorageManager::saveEpisodeProgress(const QString &episodeId,
     if (episodeId.isEmpty()) {
         return;
     }
+
+    // Skip redundant writes — no position or state change since last save.
+    const QPair<int,int> current(positionMs, playState);
+    if (m_lastSavedProgress.value(episodeId) == current) {
+        return;
+    }
+
     if (!ensureOpen()) {
         return;
     }
@@ -293,6 +300,8 @@ void StorageManager::saveEpisodeProgress(const QString &episodeId,
 
     if (!query.exec()) {
         logError("save episode progress", query.lastError());
+    } else {
+        m_lastSavedProgress.insert(episodeId, current);
     }
 }
 

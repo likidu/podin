@@ -21,7 +21,7 @@ Status notes:
 - Pending: /recent/episodes, /trending.
 - Done: spec doc mapping screens to API fields (docs/API_NOTES.md).
 
-Milestone 1 — App architecture and data flow (mostly done)
+Milestone 1 — App architecture and data flow (done)
 - Define a clean separation:
   - QML UI layer
   - C++ API client (QNetworkAccessManager + TLS v1.2)
@@ -38,10 +38,10 @@ Status notes:
 - Done: C++ client with QNetworkAccessManager + QJson parsing + timeouts + errors.
 - Done: search() and fetchEpisodes() exposed to QML.
 - Done: auth header signing (HMAC SHA1 style) + env/default API key/secret.
-- Pending: storage layer.
+- Done: StorageManager (SQLite via QtSql) with QSYMSQL driver support.
 - Pending: retries/backoff.
 
-Milestone 2 — Minimal UI shell in QML (partial)
+Milestone 2 — Minimal UI shell in QML (done)
 - QML screens (simple, phone-friendly):
   1) Search screen (text input + results list)
   2) Podcast detail (art, title, description, subscribe)
@@ -58,8 +58,9 @@ Status notes:
 - Done: dedicated podcast detail screen (search -> detail -> episodes).
 - Done: dedicated player screen wired from episodes page.
 - Done: seek UI/control (player panel + player screen).
+- Done: settings page (volume, skip intervals, artwork toggle, sleep timer).
 
-Milestone 3 — Core data + playback (partial)
+Milestone 3 — Core data + playback (done)
 - Implement live API fetch:
   - Search by term -> list of podcasts
   - Podcast detail -> episodes
@@ -74,7 +75,7 @@ Milestone 3 — Core data + playback (partial)
 - Acceptance: audio plays, pause/resume/seek works, UI updates progress.
 Status notes:
 - Done: live API fetch for search + episodes.
-- Done: playback via QtMultimediaKit Audio (AudioFacade wrapper).
+- Done: playback via C++ AudioEngine (QMediaPlayer wrapper).
 - Done: position/duration reflected in UI.
 - Done: podcast detail API screen uses /podcasts/byfeedid.
 - Done: seek slider and buffer/status text in player panel.
@@ -82,8 +83,10 @@ Status notes:
   AudioFacade with QMediaPlayer wrapper using setPosition() with state guards and pending-seek
   mechanism. Writing position from QML caused KErrMMAudioDevice (-12014); C++ avoids this.
   See docs/DEVICE_NOTES.md for full details.
+- Done: stream URL resolution (StreamUrlResolver) with fallback logic (HTTP/HTTPS toggle,
+  query parameter stripping, retry guards).
 
-Milestone 4 — Local state and offline basics (in progress)
+Milestone 4 — Local state and offline basics (done)
 - Storage:
   - Subscriptions table: feedId, title, image, lastUpdated
   - Episode table: id/guid, feedId, title, audioUrl, duration, localPath, playedPosition
@@ -102,9 +105,12 @@ Status notes:
   See docs/DEVICE_NOTES.md for details.
 - Done: subscriptions page + toolbar entry.
 - Done: subscribe/unsubscribe from podcast detail page.
-- In progress: resume playback position stored per episode.
+- Done: resume playback position stored per episode (PlaybackController saves/loads via
+  StorageManager.saveEpisodeProgress / loadEpisodeState).
+- Done: search history (add, remove, display in SearchPage).
+- Pending: episode download feature (deferred).
 
-Milestone 5 — Robustness and UX polish (partial)
+Milestone 5 — Robustness and UX polish (mostly done)
 - Error handling: network failures, missing audio URLs, rate limits.
 - Offline behavior: show cached subscriptions/episodes.
 - Performance: image caching (local file cache), lazy loading for lists.
@@ -112,19 +118,24 @@ Milestone 5 — Robustness and UX polish (partial)
 - Deliverable: smoother user experience without adding extra features.
 - Acceptance: app does not hang on bad network; graceful fallback UI.
 Status notes:
-- Done (extra): TLS 1.2 check UI and runtime diagnostics (TlsChecker, stripped of old
-  Xiaoyuzhoufm JSON test code).
+- Done (extra): TLS 1.2 check UI and runtime diagnostics (TlsChecker).
 - Done: image proxy integration (https://podcastimage.liya.design/). List pages request /32,
   detail page requests /128. ArtworkCacheManager downloads and caches to E:/Podin/ with
   Content-Type-based extension detection, SSL error handling, and file:// URL emission.
   Artwork loading enabled by default. See docs/DEVICE_NOTES.md for bug details.
 - Done: centralized app paths in src/AppConfig.h (kMemoryCardBase, kPhoneBase, kLogsSubdir).
-  Removed old ApiConfig.h (Xiaoyuzhoufm experiment). All paths use AppConfig constants.
 - Done: sleep timer (15/30/60/90/120 min presets) with device power-off via HAL.
   Timer counts down while playing, pauses when playback pauses.
   TODO: when playlist feature is added, sleep timer should continue across episodes.
+- Done: custom SVG toolbar icons (qml/gfx/) with Image + sourceSize pattern for Symbian sizing.
+- Done: memory monitoring (MemoryMonitor) with low/critical thresholds, playback guard.
+- Done: playback error fallback (protocol toggle, query stripping, retry guards).
+- Done: HTML description stripping (stripHtml in PlayerPage + PodcastDetailPage).
+- Done: artwork cache index for O(1) lookups (ArtworkCacheManager m_coverIndex).
+- Done: position signal throttling (AudioEngine, ≥500ms gate) to reduce UI redraws.
+- Done: dedup progress saves (StorageManager skips writes when position unchanged).
+- Done: QML image cache enabled on all artwork Image elements.
 - Pending: caching/offline behavior, bandwidth controls.
-- Pending: use custom SVG as toolbar icon.
 - Next steps (memory): consider replacing page transitions to reduce stack retention;
   consider lowering episode fetch count on low-RAM devices.
 
@@ -139,7 +150,7 @@ Status notes:
 - Done: auth headers and env/default key/secret support in C++ client.
 - Pending: settings UI for user-provided keys.
 
-Milestone 7 — Packaging and verification (partial)
+Milestone 7 — Packaging and verification (done)
 - Symbian packaging: .sis build, signing workflow notes.
 - Manual test checklist:
   - Search, load, play, pause, resume
@@ -150,4 +161,5 @@ Milestone 7 — Packaging and verification (partial)
 Status notes:
 - Done: simulator build scripts and README build/run steps.
 - Done: Symbian .sis packaging notes + checklist (docs/SYMBIAN_PACKAGING.md).
-- Pending: device verification on Nokia C7 (Belle FP2).
+- Done: device verification on Nokia C7 (Belle FP2). Extensive testing documented in
+  docs/DEVICE_NOTES.md including audio seeking, SQLite persistence, and artwork caching.

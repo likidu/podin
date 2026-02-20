@@ -24,6 +24,22 @@ Page {
                               cachedArtworkPath && cachedArtworkPath.length > 0
     property string storageError: ""
 
+    function stripHtml(html) {
+        if (!html) return "";
+        var s = html;
+        s = s.replace(/<br\s*\/?>/gi, "\n");
+        s = s.replace(/<\/p>/gi, "\n\n");
+        s = s.replace(/<[^>]*>/g, "");
+        s = s.replace(/&nbsp;/gi, " ");
+        s = s.replace(/&amp;/gi, "&");
+        s = s.replace(/&lt;/gi, "<");
+        s = s.replace(/&gt;/gi, ">");
+        s = s.replace(/&quot;/gi, '"');
+        s = s.replace(/&#39;/gi, "'");
+        s = s.replace(/\n{3,}/g, "\n\n");
+        return s.replace(/^\s+|\s+$/g, "");
+    }
+
     function requestPodcastIfReady() {
         if (page.feedId > 0) {
             if (page.feedId !== page.lastRequestedFeedId) {
@@ -113,15 +129,38 @@ Page {
 
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#22304e" }
-            GradientStop { position: 1.0; color: "#0f1524" }
+        color: "#182239"
+    }
+
+    Rectangle {
+        id: headerBar
+        z: 3
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: headerTitle.height + 16
+        color: "#141c2e"
+
+        Text {
+            id: headerTitle
+            width: parent.width - 32
+            anchors.top: parent.top
+            anchors.topMargin: 8
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: page.podcastTitle.length > 0 ? page.podcastTitle : qsTr("Podcast")
+            color: platformStyle.colorNormalLight
+            font.pixelSize: 22
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
         }
     }
 
     Flickable {
         id: body
-        anchors.fill: parent
+        anchors.top: headerBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         contentWidth: width
         contentHeight: contentColumn.height + 24
         clip: true
@@ -132,15 +171,6 @@ Page {
             y: 16
             width: body.width - 32
             spacing: 12
-
-            Text {
-                width: parent.width
-                text: page.podcastTitle.length > 0 ? page.podcastTitle : qsTr("Podcast")
-                color: platformStyle.colorNormalLight
-                font.pixelSize: 22
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
-            }
 
             Rectangle {
                 width: 140
@@ -159,7 +189,7 @@ Page {
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                     asynchronous: true
-                    cache: false
+                    cache: true
                     visible: page.hasArtwork
                     sourceSize.width: 128
                     sourceSize.height: 128
@@ -202,7 +232,7 @@ Page {
             Text {
                 width: parent.width
                 text: page.podcastDescription.length > 0
-                      ? page.podcastDescription
+                      ? page.stripHtml(page.podcastDescription)
                       : qsTr("No description available.")
                 color: "#b7c4e0"
                 font.pixelSize: 18
@@ -409,8 +439,11 @@ Page {
         }
     }
 
-    onStatusChanged: {
-        if (status === PageStatus.Inactive) {
+    Timer {
+        id: cleanupTimer
+        interval: 300
+        repeat: false
+        onTriggered: {
             page.podcastTitle = "";
             page.podcastDescription = "";
             page.podcastImage = "";
@@ -418,7 +451,14 @@ Page {
             page.podcastUrl = "";
             page.cachedArtworkPath = "";
             apiClient.clearPodcastDetail();
+        }
+    }
+
+    onStatusChanged: {
+        if (status === PageStatus.Inactive) {
+            cleanupTimer.restart();
         } else if (status === PageStatus.Active && page.hasLoaded) {
+            cleanupTimer.stop();
             requestPodcastIfReady();
             refreshSubscriptionState();
             page.resolveArtwork();

@@ -44,6 +44,7 @@ QString ArtworkCacheManager::cachedArtworkPath(int feedId, const QString &title)
     QFileInfo info(cached);
     if (!info.exists() || isExpired(info)) {
         QFile::remove(cached);
+        m_coverIndex.remove(folder); // invalidate stale index entry
         return QString();
     }
 
@@ -193,6 +194,8 @@ void ArtworkCacheManager::onReplyFinished()
             QFile::remove(job.tempPath);
             emit artworkFailed(job.feedId, QString::fromLatin1("Failed to save artwork."));
         } else {
+            // Update the in-memory index so subsequent lookups skip the directory scan.
+            m_coverIndex.insert(QFileInfo(finalPath).absolutePath(), finalPath);
             m_lastDebugInfo = QString::fromLatin1("saved=%1 size=%2")
                 .arg(QFileInfo(finalPath).fileName())
                 .arg(QFileInfo(finalPath).size());
@@ -303,6 +306,12 @@ QString ArtworkCacheManager::podcastFolder(int feedId, const QString &title)
 
 QString ArtworkCacheManager::findCachedFile(const QString &folderPath) const
 {
+    // Fast path: return indexed entry if present.
+    if (m_coverIndex.contains(folderPath)) {
+        return m_coverIndex.value(folderPath);
+    }
+
+    // Slow path: scan directory (only on first lookup or cache miss).
     QDir dir(folderPath);
     if (!dir.exists()) {
         return QString();
@@ -325,6 +334,10 @@ QString ArtworkCacheManager::findCachedFile(const QString &folderPath) const
             bestPath = fullPath;
             bestTime = info.lastModified();
         }
+    }
+    if (!bestPath.isEmpty()) {
+        // Cache the result for future lookups.
+        const_cast<ArtworkCacheManager *>(this)->m_coverIndex.insert(folderPath, bestPath);
     }
     return bestPath;
 }
@@ -360,6 +373,8 @@ void ArtworkCacheManager::purgeExpired()
         return;
     }
 
+    m_coverIndex.clear();
+
     const QStringList dirs = baseDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (int i = 0; i < dirs.size(); ++i) {
         const QString folderName = dirs.at(i);
@@ -371,6 +386,8 @@ void ArtworkCacheManager::purgeExpired()
 
         QDir folder(folderPath);
         const QStringList files = folder.entryList(QDir::Files | QDir::NoDotAndDotDot);
+        QString bestPath;
+        QDateTime bestTime;
         for (int j = 0; j < files.size(); ++j) {
             const QString fileName = files.at(j);
             if (!fileName.startsWith(QLatin1String(kCoverBaseName))) {
@@ -380,7 +397,17 @@ void ArtworkCacheManager::purgeExpired()
             QFileInfo info(filePath);
             if (isExpired(info)) {
                 QFile::remove(filePath);
+            } else {
+                // Track the best (most-recent) non-expired cover for indexing.
+                if (bestPath.isEmpty() || info.lastModified() > bestTime) {
+                    bestPath = filePath;
+                    bestTime = info.lastModified();
+                }
             }
+        }
+
+        if (!bestPath.isEmpty()) {
+            m_coverIndex.insert(folderPath, bestPath);
         }
 
         const QStringList remaining = folder.entryList(QDir::Files | QDir::NoDotAndDotDot);

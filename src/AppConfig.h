@@ -7,7 +7,7 @@ namespace AppConfig {
 
 // App name and version
 static const char *const kAppName    = "Podin";
-static const char *const kAppVersion = "0.2.1";
+static const char *const kAppVersion = "0.2.2";
 
 // Base data directories (tried in priority order)
 static const char *const kMemoryCardBase = "E:/Podin";

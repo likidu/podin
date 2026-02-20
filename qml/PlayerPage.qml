@@ -11,6 +11,80 @@ Page {
     property bool updatingSlider: false
     property bool userSeeking: false
 
+    // Viewed episode — set when navigating from the episode list to a different episode
+    // than what's currently playing. When empty, the page shows the playing episode.
+    property string viewedUrl: ""
+    property string viewedEpisodeId: ""
+    property int viewedFeedId: 0
+    property string viewedTitle: ""
+    property string viewedPodcastTitle: ""
+    property string viewedEnclosureType: ""
+    property string viewedDescription: ""
+
+    function isViewingDifferentEp() {
+        if (viewedEpisodeId.length === 0) return false;
+        if (!playback) return true;
+        return playback.episodeId !== viewedEpisodeId;
+    }
+
+    function switchToNowPlaying() {
+        viewedUrl = "";
+        viewedEpisodeId = "";
+        viewedFeedId = 0;
+        viewedTitle = "";
+        viewedPodcastTitle = "";
+        viewedEnclosureType = "";
+        viewedDescription = "";
+    }
+
+    function playViewedEpisode() {
+        if (!playback) return;
+        playback.startEpisode(viewedUrl, viewedEpisodeId, viewedFeedId,
+                              viewedTitle, viewedPodcastTitle,
+                              viewedEnclosureType, true, viewedDescription);
+        switchToNowPlaying();
+    }
+
+    // Display helpers — show viewed* when viewing a different episode, otherwise playback.*
+    function displayTitle() {
+        if (isViewingDifferentEp()) return viewedTitle;
+        return playback && playback.episodeTitle.length > 0 ? playback.episodeTitle : qsTr("Player");
+    }
+
+    function displayPodcastTitle() {
+        if (isViewingDifferentEp()) return viewedPodcastTitle;
+        return playback && playback.podcastTitle.length > 0 ? playback.podcastTitle : "";
+    }
+
+    function displayDescription() {
+        if (isViewingDifferentEp()) return viewedDescription;
+        return playback && playback.episodeDescription ? playback.episodeDescription : "";
+    }
+
+    function stripHtml(html) {
+        if (!html) return "";
+        var s = html;
+        s = s.replace(/<br\s*\/?>/gi, "\n");
+        s = s.replace(/<\/p>/gi, "\n\n");
+        s = s.replace(/<[^>]*>/g, "");
+        s = s.replace(/&nbsp;/gi, " ");
+        s = s.replace(/&amp;/gi, "&");
+        s = s.replace(/&lt;/gi, "<");
+        s = s.replace(/&gt;/gi, ">");
+        s = s.replace(/&quot;/gi, '"');
+        s = s.replace(/&#39;/gi, "'");
+        s = s.replace(/\n{3,}/g, "\n\n");
+        return s.replace(/^\s+|\s+$/g, "");
+    }
+
+    function hasActiveMedia() {
+        if (isViewingDifferentEp()) return false;
+        if (!playback) return false;
+        if (playback.isPlaying || playback.manualPaused) return true;
+        var st = playback.status;
+        return st !== playback.noMediaStatus && playback.duration > 0;
+    }
+
     function isPlaybackActive() {
         if (!playback) {
             return false;
@@ -138,16 +212,57 @@ Page {
 
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#1f2a43" }
-            GradientStop { position: 1.0; color: "#0f1524" }
+        color: "#171f33"
+    }
+
+    Rectangle {
+        id: headerBar
+        z: 3
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: headerContent.height + 16
+        color: "#141c2e"
+
+        Column {
+            id: headerContent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: 8
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            spacing: 4
+
+            Text {
+                width: parent.width
+                text: page.displayTitle()
+                color: platformStyle.colorNormalLight
+                font.pixelSize: 20
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+            }
+
+            Text {
+                width: parent.width
+                text: page.displayPodcastTitle()
+                color: "#b7c4e0"
+                font.pixelSize: 14
+                horizontalAlignment: Text.AlignHCenter
+                visible: page.displayPodcastTitle().length > 0
+            }
         }
     }
 
     Flickable {
         id: mainFlickable
-        anchors.fill: parent
+        anchors.top: headerBar.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         anchors.margins: 16
+        anchors.topMargin: 8
+        anchors.bottomMargin: page.isViewingDifferentEp() ? nowPlayingBanner.height + 16 : 16
         contentWidth: width
         contentHeight: mainColumn.height
         clip: true
@@ -160,49 +275,32 @@ Page {
 
             Text {
                 width: parent.width
-                text: playback && playback.episodeTitle.length > 0 ? playback.episodeTitle : qsTr("Player")
-                color: platformStyle.colorNormalLight
-                font.pixelSize: 20
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
-            }
-
-            Text {
-                width: parent.width
-                text: playback && playback.podcastTitle.length > 0 ? playback.podcastTitle : ""
-                color: "#b7c4e0"
-                font.pixelSize: 14
-                horizontalAlignment: Text.AlignHCenter
-                visible: playback ? (playback.podcastTitle.length > 0) : false
-            }
-
-            Text {
-                width: parent.width
-                text: playback && playback.streamUrl && playback.streamUrl.toString().length > 0
+                text: page.hasActiveMedia() && playback && playback.streamUrl && playback.streamUrl.toString().length > 0
                       ? qsTr("Source: %1").arg(mediaLabelFor(playback.streamUrl, playback.enclosureType))
                       : ""
                 color: "#93a3c4"
                 font.pixelSize: 12
                 horizontalAlignment: Text.AlignHCenter
-                visible: playback
+                visible: page.hasActiveMedia() && playback
                          ? (playback.streamUrl && playback.streamUrl.toString().length > 0 ? true : false)
                          : false
             }
 
             Text {
                 width: parent.width
-                text: playback && playback.episodeDescription ? playback.episodeDescription : ""
+                text: page.displayDescription().length > 0 ? page.stripHtml(page.displayDescription()) : ""
                 color: "#b7c4e0"
                 font.pixelSize: 18
                 wrapMode: Text.WordWrap
                 textFormat: Text.PlainText
-                visible: playback ? (playback.episodeDescription && playback.episodeDescription.length > 0) : false
+                visible: page.displayDescription().length > 0
             }
 
             Column {
                 id: seekArea
                 width: parent.width
                 spacing: 6
+                visible: page.hasActiveMedia()
 
                 Item {
                     width: parent.width
@@ -294,22 +392,25 @@ Page {
                 color: resolving ? "#ffffaa" : "#ffd6d9"
                 font.pixelSize: 12
                 horizontalAlignment: Text.AlignHCenter
-                visible: resolving || (playback
+                visible: page.hasActiveMedia() && (resolving || (playback
                          ? (isPlaybackActive() &&
                             (playback.status === playback.bufferingStatus ||
                              playback.status === playback.loadingStatus ||
                              playback.status === playback.stalledStatus))
-                         : false)
+                         : false))
             }
 
             Button {
                 width: parent.width
-                text: isPlaybackActive() ? qsTr("Pause") : qsTr("Play")
+                text: page.isViewingDifferentEp() ? qsTr("Play")
+                      : (isPlaybackActive() ? qsTr("Pause") : qsTr("Play"))
                 onClicked: {
                     if (!playback) {
                         return;
                     }
-                    if (isPlaybackActive()) {
+                    if (page.isViewingDifferentEp()) {
+                        page.playViewedEpisode();
+                    } else if (isPlaybackActive()) {
                         playback.pause();
                     } else {
                         playback.play();
@@ -320,6 +421,7 @@ Page {
             Row {
                 width: parent.width
                 spacing: 8
+                visible: page.hasActiveMedia()
 
                 Button {
                     width: (parent.width - 8) / 2
@@ -347,6 +449,7 @@ Page {
             Button {
                 width: parent.width
                 text: qsTr("Stop")
+                visible: page.hasActiveMedia()
                 onClicked: {
                     if (playback) {
                         playback.stop();
@@ -360,6 +463,7 @@ Page {
                 color: "#b7c4e0"
                 font.pixelSize: 14
                 wrapMode: Text.WordWrap
+                visible: page.hasActiveMedia()
             }
 
             // Debug section (hidden in release builds)
@@ -469,6 +573,72 @@ Page {
             Item {
                 width: parent.width
                 height: 20
+            }
+        }
+    }
+
+    Rectangle {
+        id: nowPlayingBanner
+        z: 2
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: 16
+        anchors.bottomMargin: 0
+        width: parent.width - 32
+        height: page.isViewingDifferentEp() && playback && playback.isPlaying ? 70 : 0
+        radius: 10
+        border.width: 1
+        border.color: "#2a3852"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: "#1a2436" }
+            GradientStop { position: 1.0; color: "#0f1526" }
+        }
+        visible: height > 0
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: page.switchToNowPlaying()
+        }
+
+        Rectangle {
+            width: 4
+            height: parent.height - 16
+            radius: 2
+            anchors.left: parent.left
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            color: "#5a7cff"
+        }
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 12
+            anchors.leftMargin: 24
+            spacing: 2
+
+            Text {
+                width: parent.width
+                text: qsTr("Now playing")
+                color: "#9fb0d3"
+                font.pixelSize: 12
+                font.capitalization: Font.AllUppercase
+            }
+
+            Text {
+                width: parent.width
+                text: playback ? playback.episodeTitle : ""
+                color: platformStyle.colorNormalLight
+                font.pixelSize: 15
+                elide: Text.ElideRight
+            }
+
+            Text {
+                width: parent.width
+                text: playback ? playback.podcastTitle : ""
+                color: "#93a3c4"
+                font.pixelSize: 12
+                elide: Text.ElideRight
+                visible: playback ? playback.podcastTitle.length > 0 : false
             }
         }
     }

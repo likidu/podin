@@ -25,10 +25,7 @@ Page {
 
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#1f2a43" }
-            GradientStop { position: 1.0; color: "#0f1524" }
-        }
+        color: "#171f33"
     }
 
     Flickable {
@@ -263,7 +260,7 @@ Page {
 
                                 Button {
                                     width: (parent.width - 4 * 4) / 5
-                                    text: modelData + "m"
+                                    text: modelData
                                     checked: storage ? storage.sleepTimerMinutes === modelData : false
                                     onClicked: page.setSleepMinutes(modelData)
                                 }

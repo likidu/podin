@@ -90,23 +90,16 @@ Page {
             metaParts.push(metaType);
         }
         page.nowPlayingMeta = metaParts.join(" • ");
-        if (page.playback) {
-            var sameEpisode = (page.playback.streamUrl && page.playback.streamUrl.toString() === urlString) &&
-                              (page.playback.episodeId === epId);
-            if (!sameEpisode) {
-                page.playback.startEpisode(urlString,
-                                           epId,
-                                           page.feedId,
-                                           epTitle,
-                                           page.podcastTitle,
-                                           encType,
-                                           false,
-                                           description || "");
-            }
-        }
         var params = {
             tools: page.tools,
-            playback: page.playback
+            playback: page.playback,
+            viewedUrl: urlString,
+            viewedEpisodeId: epId,
+            viewedFeedId: page.feedId,
+            viewedTitle: epTitle,
+            viewedPodcastTitle: page.podcastTitle,
+            viewedEnclosureType: encType,
+            viewedDescription: description || ""
         };
         pageStack.replace(Qt.resolvedUrl("PlayerPage.qml"), params, true);
     }
@@ -144,21 +137,28 @@ Page {
         }
     }
 
-    onStatusChanged: {
-        if (status === PageStatus.Inactive) {
+    Timer {
+        id: cleanupTimer
+        interval: 300
+        repeat: false
+        onTriggered: {
             page.lastRequestedFeedId = 0;
             apiClient.clearEpisodes();
+        }
+    }
+
+    onStatusChanged: {
+        if (status === PageStatus.Inactive) {
+            cleanupTimer.restart();
         } else if (status === PageStatus.Active && page.hasLoaded) {
+            cleanupTimer.stop();
             requestEpisodesIfReady();
         }
     }
 
     Rectangle {
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#202942" }
-            GradientStop { position: 1.0; color: "#101624" }
-        }
+        color: "#181f33"
     }
 
     Rectangle {

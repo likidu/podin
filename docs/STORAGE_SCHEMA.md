@@ -90,4 +90,4 @@ Suggested keys:
 - Episode table: `episodes` table.
 - Resume playback: `episodes.played_position_ms` + `episodes.last_played_at`.
 - Recent list: `episodes.last_played_at` (or `recent_activity` if needed).
-- Downloads: `episodes.local_path`.
+- Downloads: deferred (no `local_path` column yet; add when download feature is implemented).

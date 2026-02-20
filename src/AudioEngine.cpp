@@ -16,6 +16,7 @@ AudioEngine::AudioEngine(QObject *parent)
     , m_seekable(false)
     , m_available(false)
     , m_pendingSeek(-1)
+    , m_lastEmittedPosition(-1)
 {
     m_player = new QMediaPlayer(this);
     if (m_player) {
@@ -197,6 +198,7 @@ void AudioEngine::reset()
     emit sourceChanged();
 
     m_pendingSeek = -1;
+    m_lastEmittedPosition = -1;
 
     if (m_state != 0) { m_state = 0; emit stateChanged(); }
     if (m_status != 0) { m_status = 0; emit statusChanged(); }
@@ -213,6 +215,7 @@ void AudioEngine::prepareForNewSource()
         m_player->setMedia(QMediaContent());
     }
     m_pendingSeek = -1;
+    m_lastEmittedPosition = -1;
 
     if (m_state != 0) { m_state = 0; emit stateChanged(); }
     if (m_status != 0) { m_status = 0; emit statusChanged(); }
@@ -280,6 +283,9 @@ void AudioEngine::onPlayerStateChanged()
     if (m_state != newState) {
         m_state = newState;
         qDebug() << "AudioEngine: state ->" << newState;
+        // Force an immediate position update so the slider snaps to the correct
+        // position on play/pause/stop, bypassing the 500 ms throttle.
+        m_lastEmittedPosition = -1;
         emit stateChanged();
     }
     applyPendingSeek();
@@ -317,8 +323,14 @@ void AudioEngine::onPlayerMediaStatusChanged()
 void AudioEngine::onPlayerPositionChanged(qint64 pos)
 {
     int newPos = static_cast<int>(pos);
-    if (m_position != newPos) {
-        m_position = newPos;
+    if (m_position == newPos)
+        return;
+    m_position = newPos;
+    // Throttle: only notify QML when position has moved >=500 ms from the last
+    // emitted value. This keeps the seek slider responsive without flooding the
+    // QML event loop at the full QMediaPlayer tick rate (~20-50 Hz).
+    if (m_lastEmittedPosition < 0 || qAbs(m_position - m_lastEmittedPosition) >= 500) {
+        m_lastEmittedPosition = m_position;
         emit positionChanged();
     }
 }

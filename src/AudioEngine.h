@@ -126,7 +126,8 @@ private:
     bool m_seekable;
     bool m_available;
     QString m_errorString;
-    int m_pendingSeek; // -1 = none
+    int m_pendingSeek;          // -1 = none
+    int m_lastEmittedPosition;  // -1 = never emitted; used to throttle positionChanged
 };
 
 #endif // AUDIOENGINE_H

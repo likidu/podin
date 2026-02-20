@@ -53,10 +53,7 @@ Page {
     Rectangle {
         id: background
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#2f3f6d" }
-            GradientStop { position: 1.0; color: "#12192b" }
-        }
+        color: "#202c4c"
     }
 
     function startSearch() {
@@ -329,7 +326,7 @@ Page {
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                     asynchronous: true
-                    cache: false
+                    cache: true
                     sourceSize.width: 44
                     sourceSize.height: 44
                     visible: storage && storage.enableArtworkLoading && source.toString().length > 0
@@ -533,11 +530,20 @@ Page {
         }
     }
 
-    onStatusChanged: {
-        if (status === PageStatus.Inactive) {
+    Timer {
+        id: cleanupTimer
+        interval: 300
+        repeat: false
+        onTriggered: {
             page.resetSearchState();
             page.hasSearched = false;
             apiClient.clearPodcasts();
+        }
+    }
+
+    onStatusChanged: {
+        if (status === PageStatus.Inactive) {
+            cleanupTimer.restart();
         }
     }
 }

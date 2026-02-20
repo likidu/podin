@@ -55,6 +55,9 @@ private:
     QNetworkAccessManager *m_nam;
     QHash<QNetworkReply*, DownloadJob> m_jobs;
     QSet<int> m_inFlight;
+    // In-memory index: folderPath -> cached cover file path.
+    // Avoids repeated QDir::entryList() scans on every artwork lookup.
+    QHash<QString, QString> m_coverIndex;
     QString m_lastDebugInfo;
 };
 
